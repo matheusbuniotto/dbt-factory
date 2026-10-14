@@ -1,0 +1,12 @@
+dbt-core>=1.8,<2
+dbt-duckdb>=1.8
+fastapi
+uvicorn
+httpx
+pyyaml
+sqlglot
+sqlfluff>=3
+sqlfluff-templater-dbt>=3
+mcp>=1.2,<2
+claude-agent-sdk
+pytest

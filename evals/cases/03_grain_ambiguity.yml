@@ -1,0 +1,19 @@
+id: grain_ambiguity
+title: Daily orders by status (composite grain)
+tags: [tricky, grain]
+request: Build daily orders by status — orders count and amount per day per status.
+target_model: fct_daily_orders_by_status
+code:
+  required_columns: [order_date, status, order_count, amount]
+  grain: [order_date, status]
+data:
+  - name: order_count sums to all orders
+    query: "select sum(order_count) as v from {{ ref('{model}') }}"
+    expect_query: "select count(*) as v from {{ ref('orders') }}"
+  - name: grain unique on (order_date, status)
+    query: "select count(*) as v from (select order_date, status from {{ ref('{model}') }} group by 1, 2 having count(*) > 1) d"
+    expect: 0
+golden:
+  reference_sql: "select order_date, status, count(*) as order_count, sum(amount) as amount from {{ ref('orders') }} group by 1, 2"
+  key: [order_date, status]
+  columns: [order_date, status, order_count, amount]

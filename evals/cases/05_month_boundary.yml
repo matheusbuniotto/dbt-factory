@@ -1,0 +1,18 @@
+id: month_boundary
+title: Q1 2018 revenue (inclusive month-end boundary)
+tags: [tricky, dates]
+request: Build fct_q1_2018_revenue — revenue and order count by status for Q1 2018 (Jan 1 through Mar 31 inclusive).
+target_model: fct_q1_2018_revenue
+code:
+  required_columns: [status, revenue, order_count]
+  grain: [status]
+data:
+  - name: Q1 revenue matches inclusive filter
+    query: "select sum(revenue) as v from {{ ref('{model}') }}"
+    expect_query: "select sum(amount) as v from {{ ref('orders') }} where order_date >= '2018-01-01' and order_date < '2018-04-01'"
+    tolerance: 0.001
+golden:
+  reference_sql: "select status, sum(amount) as revenue, count(*) as order_count from {{ ref('orders') }} where order_date >= '2018-01-01' and order_date < '2018-04-01' group by 1"
+  key: [status]
+  columns: [status, revenue, order_count]
+  tolerance: 0.001

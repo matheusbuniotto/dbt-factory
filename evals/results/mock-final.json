@@ -1,0 +1,582 @@
+{
+  "run_id": "mock-final",
+  "label": "mock final",
+  "engine": "mock",
+  "judge": "none",
+  "started": 1791991150.3977118,
+  "status": "done",
+  "weights": {
+    "data": 0.5,
+    "code": 0.25,
+    "gates": 0.25
+  },
+  "cases": [
+    {
+      "id": "monthly_revenue",
+      "title": "Monthly revenue mart (baseline)",
+      "tags": [
+        "basic",
+        "aggregation"
+      ],
+      "task_id": "71acbc85",
+      "status": "succeeded",
+      "model": "fct_monthly_revenue",
+      "agent_model": "fct_monthly_revenue",
+      "seconds": 94.7,
+      "turns": 12,
+      "cost_usd": 0,
+      "gate": {
+        "passed": true,
+        "summary": {
+          "pass": 12,
+          "fail": 0,
+          "warn": 0,
+          "skip": 2,
+          "waived": 0
+        },
+        "failed": []
+      },
+      "assertions": [
+        {
+          "kind": "code",
+          "name": "model compiles",
+          "passed": true,
+          "detail": "fct_monthly_revenue"
+        },
+        {
+          "kind": "code",
+          "name": "has column order_month",
+          "passed": true,
+          "detail": "columns: order_month, order_count, customer_count, revenue, avg_order_value"
+        },
+        {
+          "kind": "code",
+          "name": "has column order_count",
+          "passed": true,
+          "detail": "columns: order_month, order_count, customer_count, revenue, avg_order_value"
+        },
+        {
+          "kind": "code",
+          "name": "has column revenue",
+          "passed": true,
+          "detail": "columns: order_month, order_count, customer_count, revenue, avg_order_value"
+        },
+        {
+          "kind": "code",
+          "name": "declares expected grain",
+          "passed": true,
+          "detail": "declared=['order_month'] expected=['order_month']"
+        },
+        {
+          "kind": "code",
+          "name": "no bare select *",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "kind": "data",
+          "name": "total revenue equals orders.amount",
+          "passed": true,
+          "detail": "got 1672.0 expected 1672.0"
+        },
+        {
+          "kind": "data",
+          "name": "one row per month",
+          "passed": true,
+          "detail": "got 4 expected 4"
+        },
+        {
+          "kind": "golden",
+          "name": "golden query equivalence",
+          "passed": true,
+          "detail": "4 vs 4 rows; missing 0, extra 0, mismatched cells 0",
+          "weight": 2
+        }
+      ],
+      "judge": null,
+      "scores": {
+        "code": 1.0,
+        "data": 1.0,
+        "gates": 1.0,
+        "judge": null,
+        "overall": 1.0
+      },
+      "passed": true
+    },
+    {
+      "id": "fanout_trap",
+      "title": "Customer payments (join fan-out trap)",
+      "tags": [
+        "tricky",
+        "fan-out"
+      ],
+      "task_id": "1239cd9a",
+      "status": "succeeded",
+      "model": "fct_customer_payments",
+      "agent_model": "fct_customer_payments",
+      "seconds": 100.7,
+      "turns": 12,
+      "cost_usd": 0,
+      "gate": {
+        "passed": false,
+        "summary": {
+          "pass": 11,
+          "fail": 1,
+          "warn": 0,
+          "skip": 2,
+          "waived": 0
+        },
+        "failed": [
+          "no_fanout"
+        ]
+      },
+      "assertions": [
+        {
+          "kind": "code",
+          "name": "model compiles",
+          "passed": true,
+          "detail": "fct_customer_payments"
+        },
+        {
+          "kind": "code",
+          "name": "has column customer_id",
+          "passed": true,
+          "detail": "columns: customer_id, number_of_orders, total_paid"
+        },
+        {
+          "kind": "code",
+          "name": "has column number_of_orders",
+          "passed": true,
+          "detail": "columns: customer_id, number_of_orders, total_paid"
+        },
+        {
+          "kind": "code",
+          "name": "has column total_paid",
+          "passed": true,
+          "detail": "columns: customer_id, number_of_orders, total_paid"
+        },
+        {
+          "kind": "code",
+          "name": "declares expected grain",
+          "passed": true,
+          "detail": "declared=['customer_id'] expected=['customer_id']"
+        },
+        {
+          "kind": "code",
+          "name": "no bare select *",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "kind": "data",
+          "name": "number_of_orders sums to distinct orders",
+          "passed": false,
+          "detail": "got 113 expected 99"
+        },
+        {
+          "kind": "data",
+          "name": "total_paid equals payments total",
+          "passed": true,
+          "detail": "got 1672.0 expected 1672.0"
+        },
+        {
+          "kind": "golden",
+          "name": "golden query equivalence",
+          "passed": false,
+          "detail": "62 vs 62 rows; missing 0, extra 0, mismatched cells 11; e.g. {'key': ('46',), 'column': 'number_of_orders', 'got': 3, 'expected': 2}",
+          "weight": 2
+        }
+      ],
+      "judge": null,
+      "scores": {
+        "code": 1.0,
+        "data": 0.25,
+        "gates": 0.917,
+        "judge": null,
+        "overall": 0.604
+      },
+      "passed": false
+    },
+    {
+      "id": "grain_ambiguity",
+      "title": "Daily orders by status (composite grain)",
+      "tags": [
+        "tricky",
+        "grain"
+      ],
+      "task_id": "b784fcab",
+      "status": "succeeded",
+      "model": "fct_daily_orders_by_status",
+      "agent_model": "fct_daily_orders_by_status",
+      "seconds": 94.7,
+      "turns": 12,
+      "cost_usd": 0,
+      "gate": {
+        "passed": true,
+        "summary": {
+          "pass": 12,
+          "fail": 0,
+          "warn": 0,
+          "skip": 2,
+          "waived": 0
+        },
+        "failed": []
+      },
+      "assertions": [
+        {
+          "kind": "code",
+          "name": "model compiles",
+          "passed": true,
+          "detail": "fct_daily_orders_by_status"
+        },
+        {
+          "kind": "code",
+          "name": "has column order_date",
+          "passed": true,
+          "detail": "columns: order_date, status, order_count, amount"
+        },
+        {
+          "kind": "code",
+          "name": "has column status",
+          "passed": true,
+          "detail": "columns: order_date, status, order_count, amount"
+        },
+        {
+          "kind": "code",
+          "name": "has column order_count",
+          "passed": true,
+          "detail": "columns: order_date, status, order_count, amount"
+        },
+        {
+          "kind": "code",
+          "name": "has column amount",
+          "passed": true,
+          "detail": "columns: order_date, status, order_count, amount"
+        },
+        {
+          "kind": "code",
+          "name": "declares expected grain",
+          "passed": true,
+          "detail": "declared=['order_date', 'status'] expected=['order_date', 'status']"
+        },
+        {
+          "kind": "code",
+          "name": "no bare select *",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "kind": "data",
+          "name": "order_count sums to all orders",
+          "passed": true,
+          "detail": "got 99 expected 99"
+        },
+        {
+          "kind": "data",
+          "name": "grain unique on (order_date, status)",
+          "passed": true,
+          "detail": "got 0 expected 0"
+        },
+        {
+          "kind": "golden",
+          "name": "golden query equivalence",
+          "passed": true,
+          "detail": "73 vs 73 rows; missing 0, extra 0, mismatched cells 0",
+          "weight": 2
+        }
+      ],
+      "judge": null,
+      "scores": {
+        "code": 1.0,
+        "data": 1.0,
+        "gates": 1.0,
+        "judge": null,
+        "overall": 1.0
+      },
+      "passed": true
+    },
+    {
+      "id": "null_handling",
+      "title": "Customer LTV with zero for customers without orders",
+      "tags": [
+        "tricky",
+        "nulls"
+      ],
+      "task_id": "7cc2eb97",
+      "status": "succeeded",
+      "model": "dim_customer_ltv",
+      "agent_model": "dim_customer_ltv",
+      "seconds": 98.7,
+      "turns": 12,
+      "cost_usd": 0,
+      "gate": {
+        "passed": true,
+        "summary": {
+          "pass": 12,
+          "fail": 0,
+          "warn": 0,
+          "skip": 2,
+          "waived": 0
+        },
+        "failed": []
+      },
+      "assertions": [
+        {
+          "kind": "code",
+          "name": "model compiles",
+          "passed": true,
+          "detail": "dim_customer_ltv"
+        },
+        {
+          "kind": "code",
+          "name": "has column customer_id",
+          "passed": true,
+          "detail": "columns: customer_id, first_name, lifetime_value"
+        },
+        {
+          "kind": "code",
+          "name": "has column lifetime_value",
+          "passed": true,
+          "detail": "columns: customer_id, first_name, lifetime_value"
+        },
+        {
+          "kind": "code",
+          "name": "declares expected grain",
+          "passed": true,
+          "detail": "declared=['customer_id'] expected=['customer_id']"
+        },
+        {
+          "kind": "code",
+          "name": "no bare select *",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "kind": "data",
+          "name": "no null lifetime_value",
+          "passed": false,
+          "detail": "got 38 expected 0"
+        },
+        {
+          "kind": "data",
+          "name": "every customer present",
+          "passed": true,
+          "detail": "got 100 expected 100"
+        },
+        {
+          "kind": "golden",
+          "name": "golden query equivalence",
+          "passed": false,
+          "detail": "100 vs 100 rows; missing 0, extra 0, mismatched cells 38; e.g. {'key': ('5',), 'column': 'lifetime_value', 'got': None, 'expected': 0.0}",
+          "weight": 2
+        }
+      ],
+      "judge": null,
+      "scores": {
+        "code": 1.0,
+        "data": 0.25,
+        "gates": 1.0,
+        "judge": null,
+        "overall": 0.625
+      },
+      "passed": false
+    },
+    {
+      "id": "month_boundary",
+      "title": "Q1 2018 revenue (inclusive month-end boundary)",
+      "tags": [
+        "tricky",
+        "dates"
+      ],
+      "task_id": "15c286b0",
+      "status": "succeeded",
+      "model": "fct_q1_2018_revenue",
+      "agent_model": "fct_q1_2018_revenue",
+      "seconds": 94.7,
+      "turns": 12,
+      "cost_usd": 0,
+      "gate": {
+        "passed": true,
+        "summary": {
+          "pass": 12,
+          "fail": 0,
+          "warn": 0,
+          "skip": 2,
+          "waived": 0
+        },
+        "failed": []
+      },
+      "assertions": [
+        {
+          "kind": "code",
+          "name": "model compiles",
+          "passed": true,
+          "detail": "fct_q1_2018_revenue"
+        },
+        {
+          "kind": "code",
+          "name": "has column status",
+          "passed": true,
+          "detail": "columns: status, revenue, order_count"
+        },
+        {
+          "kind": "code",
+          "name": "has column revenue",
+          "passed": true,
+          "detail": "columns: status, revenue, order_count"
+        },
+        {
+          "kind": "code",
+          "name": "has column order_count",
+          "passed": true,
+          "detail": "columns: status, revenue, order_count"
+        },
+        {
+          "kind": "code",
+          "name": "declares expected grain",
+          "passed": true,
+          "detail": "declared=['status'] expected=['status']"
+        },
+        {
+          "kind": "code",
+          "name": "no bare select *",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "kind": "data",
+          "name": "Q1 revenue matches inclusive filter",
+          "passed": false,
+          "detail": "got 1514.0 expected 1533.0"
+        },
+        {
+          "kind": "golden",
+          "name": "golden query equivalence",
+          "passed": false,
+          "detail": "5 vs 5 rows; missing 0, extra 0, mismatched cells 2; e.g. {'key': ('placed',), 'column': 'revenue', 'got': 126.0, 'expected': 145.0}",
+          "weight": 2
+        }
+      ],
+      "judge": null,
+      "scores": {
+        "code": 1.0,
+        "data": 0.0,
+        "gates": 1.0,
+        "judge": null,
+        "overall": 0.5
+      },
+      "passed": false
+    },
+    {
+      "id": "status_summary",
+      "title": "Order status summary with is_returned flag",
+      "tags": [
+        "basic",
+        "accepted_values"
+      ],
+      "task_id": "f1812784",
+      "status": "succeeded",
+      "model": "fct_order_status_summary",
+      "agent_model": "fct_order_status_summary",
+      "seconds": 94.7,
+      "turns": 12,
+      "cost_usd": 0,
+      "gate": {
+        "passed": true,
+        "summary": {
+          "pass": 12,
+          "fail": 0,
+          "warn": 0,
+          "skip": 2,
+          "waived": 0
+        },
+        "failed": []
+      },
+      "assertions": [
+        {
+          "kind": "code",
+          "name": "model compiles",
+          "passed": true,
+          "detail": "fct_order_status_summary"
+        },
+        {
+          "kind": "code",
+          "name": "has column status",
+          "passed": true,
+          "detail": "columns: status, is_returned, order_count, amount"
+        },
+        {
+          "kind": "code",
+          "name": "has column is_returned",
+          "passed": true,
+          "detail": "columns: status, is_returned, order_count, amount"
+        },
+        {
+          "kind": "code",
+          "name": "has column order_count",
+          "passed": true,
+          "detail": "columns: status, is_returned, order_count, amount"
+        },
+        {
+          "kind": "code",
+          "name": "has column amount",
+          "passed": true,
+          "detail": "columns: status, is_returned, order_count, amount"
+        },
+        {
+          "kind": "code",
+          "name": "declares expected grain",
+          "passed": true,
+          "detail": "declared=['status'] expected=['status']"
+        },
+        {
+          "kind": "code",
+          "name": "no bare select *",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "kind": "data",
+          "name": "returned flag only on returned statuses",
+          "passed": true,
+          "detail": "got 0 expected 0"
+        },
+        {
+          "kind": "data",
+          "name": "five statuses",
+          "passed": true,
+          "detail": "got 5 expected 5"
+        },
+        {
+          "kind": "golden",
+          "name": "golden query equivalence",
+          "passed": true,
+          "detail": "5 vs 5 rows; missing 0, extra 0, mismatched cells 0",
+          "weight": 2
+        }
+      ],
+      "judge": null,
+      "scores": {
+        "code": 1.0,
+        "data": 1.0,
+        "gates": 1.0,
+        "judge": null,
+        "overall": 1.0
+      },
+      "passed": true
+    }
+  ],
+  "aggregate": {
+    "cases": 6,
+    "passed": 3,
+    "pass_rate": 0.5,
+    "overall": 0.788,
+    "code": 1.0,
+    "data": 0.583,
+    "gates": 0.986,
+    "avg_turns": 12.0,
+    "total_cost_usd": 0,
+    "avg_seconds": 96.4
+  },
+  "finished": 1791991826.360913
+}

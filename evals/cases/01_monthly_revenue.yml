@@ -1,0 +1,20 @@
+id: monthly_revenue
+title: Monthly revenue mart (baseline)
+tags: [basic, aggregation]
+request: Build a monthly revenue mart with order count, customers, revenue and AOV per month.
+target_model: fct_monthly_revenue
+code:
+  required_columns: [order_month, order_count, revenue]
+  grain: [order_month]
+data:
+  - name: total revenue equals orders.amount
+    query: "select sum(revenue) as v from {{ ref('{model}') }}"
+    expect_query: "select sum(amount) as v from {{ ref('orders') }}"
+    tolerance: 0.001
+  - name: one row per month
+    row_count: 4
+golden:
+  reference_sql: "select date_trunc('month', order_date) as order_month, count(distinct order_id) as order_count, sum(amount) as revenue from {{ ref('orders') }} group by 1"
+  key: [order_month]
+  columns: [order_month, order_count, revenue]
+  tolerance: 0.001

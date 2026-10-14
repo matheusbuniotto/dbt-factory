@@ -1,0 +1,10 @@
+import puppeteer from 'puppeteer-core'
+const b = await puppeteer.launch({ executablePath: '/usr/bin/google-chrome', headless: 'new', args: ['--no-sandbox', '--window-size=1440,1100'] })
+const p = await b.newPage(); await p.setViewport({ width: 1440, height: 1100 })
+await p.goto('http://localhost:5173/?page=evals', { waitUntil: 'networkidle0' })
+await p.waitForFunction(() => document.body.innerText.includes('Pass rate'))
+await p.evaluate(() => { const b = [...document.querySelectorAll('aside button')].find(x => x.innerText.includes('mock final')); b?.click() })
+await new Promise(r => setTimeout(r, 1500))
+await p.select('select', 'mock-baseline'); await new Promise(r => setTimeout(r, 1500))
+await p.screenshot({ path: '../screenshots/evals-compare.png' })
+await b.close(); console.log('ok')
