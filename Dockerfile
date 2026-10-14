@@ -8,7 +8,7 @@ RUN npm ci --no-audit --no-fund
 COPY frontend/ ./
 RUN npm run build
 
-FROM python:3.12-slim-bookworm AS deps
+FROM python:3.14-slim-bookworm AS deps
 COPY --from=ghcr.io/astral-sh/uv:0.9 /uv /usr/local/bin/uv
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 WORKDIR /app
@@ -16,7 +16,7 @@ COPY requirements.txt ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv venv /opt/venv && VIRTUAL_ENV=/opt/venv uv pip install -r requirements.txt
 
-FROM python:3.12-slim-bookworm AS runtime
+FROM python:3.14-slim-bookworm AS runtime
 LABEL org.opencontainers.image.title="dbt-factory" org.opencontainers.image.source="https://github.com/matheusbuniotto/dbt-factory"
 # git: the factory isolates every run in a git worktree
 RUN apt-get update \
