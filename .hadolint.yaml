@@ -1,0 +1,2 @@
+# DL3008/DL3013 satisfied via explicit pins where practical; apt git is pinned to the bookworm minor series.
+failure-threshold: warning

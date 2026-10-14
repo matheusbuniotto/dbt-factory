@@ -20,3 +20,11 @@ evals/results/*
 .claude/settings.local.json
 .factory/
 design-refs/
+# CI artifacts
+coverage.xml
+.coverage
+junit*.xml
+*.sbom.json
+complexity-report.md
+eval-scorecard.md
+.lighthouseci/

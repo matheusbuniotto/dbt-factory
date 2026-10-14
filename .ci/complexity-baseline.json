@@ -1,0 +1,909 @@
+{
+ "files": {
+  "backend/adapters/__init__.py": 62,
+  "backend/engine_config.py": 139,
+  "backend/factory_tools/__init__.py": 0,
+  "backend/factory_tools/analysis.py": 221,
+  "backend/factory_tools/dbt_tools.py": 276,
+  "backend/factory_tools/gates.py": 185,
+  "backend/factory_tools/quality.py": 393,
+  "backend/factory_tools/review.py": 320,
+  "backend/factory_tools/warehouse.py": 315,
+  "backend/main.py": 794,
+  "backend/mcp_server.py": 175,
+  "backend/mock.py": 188,
+  "backend/mock_solutions.py": 274,
+  "backend/prompts.py": 30,
+  "backend/sdk_runner.py": 142,
+  "evals/__init__.py": 0,
+  "evals/__main__.py": 35,
+  "evals/judge.py": 51,
+  "evals/runner.py": 186,
+  "evals/scoring.py": 167,
+  "frontend/src/App.tsx": 1209,
+  "frontend/src/Evals.tsx": 241,
+  "frontend/src/Gates.tsx": 100,
+  "frontend/src/Review.tsx": 560,
+  "frontend/src/main.tsx": 10,
+  "frontend/src/ui.tsx": 40,
+  "frontend/src/vite-env.d.ts": 1,
+  "scripts/ci/complexity_gate.py": 143
+ },
+ "functions": {
+  "backend/adapters/__init__.py::DatabricksAdapter": {
+   "cc": 2,
+   "lines": 24
+  },
+  "backend/adapters/__init__.py::DatabricksAdapter.profiles_yml": {
+   "cc": 1,
+   "lines": 16
+  },
+  "backend/adapters/__init__.py::DuckDBAdapter": {
+   "cc": 2,
+   "lines": 16
+  },
+  "backend/adapters/__init__.py::DuckDBAdapter.profiles_yml": {
+   "cc": 1,
+   "lines": 11
+  },
+  "backend/adapters/__init__.py::get_adapter": {
+   "cc": 2,
+   "lines": 2
+  },
+  "backend/engine_config.py::claude_auth": {
+   "cc": 7,
+   "lines": 10
+  },
+  "backend/engine_config.py::default_engine": {
+   "cc": 4,
+   "lines": 7
+  },
+  "backend/engine_config.py::mcp_servers": {
+   "cc": 1,
+   "lines": 12
+  },
+  "backend/engine_config.py::mcp_tool_names": {
+   "cc": 2,
+   "lines": 19
+  },
+  "backend/engine_config.py::model": {
+   "cc": 2,
+   "lines": 2
+  },
+  "backend/engine_config.py::project_skills": {
+   "cc": 7,
+   "lines": 17
+  },
+  "backend/engine_config.py::write_mcp_config": {
+   "cc": 1,
+   "lines": 6
+  },
+  "backend/factory_tools/analysis.py::_num": {
+   "cc": 2,
+   "lines": 5
+  },
+  "backend/factory_tools/analysis.py::_profile_sql": {
+   "cc": 4,
+   "lines": 12
+  },
+  "backend/factory_tools/analysis.py::columns": {
+   "cc": 2,
+   "lines": 8
+  },
+  "backend/factory_tools/analysis.py::compare": {
+   "cc": 41,
+   "lines": 104
+  },
+  "backend/factory_tools/analysis.py::histogram": {
+   "cc": 8,
+   "lines": 37
+  },
+  "backend/factory_tools/analysis.py::profile": {
+   "cc": 15,
+   "lines": 34
+  },
+  "backend/factory_tools/dbt_tools.py::_find": {
+   "cc": 6,
+   "lines": 9
+  },
+  "backend/factory_tools/dbt_tools.py::_manifest": {
+   "cc": 6,
+   "lines": 8
+  },
+  "backend/factory_tools/dbt_tools.py::_nodes": {
+   "cc": 1,
+   "lines": 7
+  },
+  "backend/factory_tools/dbt_tools.py::_stale": {
+   "cc": 7,
+   "lines": 8
+  },
+  "backend/factory_tools/dbt_tools.py::build": {
+   "cc": 14,
+   "lines": 43
+  },
+  "backend/factory_tools/dbt_tools.py::compile_model": {
+   "cc": 4,
+   "lines": 14
+  },
+  "backend/factory_tools/dbt_tools.py::docs": {
+   "cc": 15,
+   "lines": 40
+  },
+  "backend/factory_tools/dbt_tools.py::failing_test_rows": {
+   "cc": 4,
+   "lines": 21
+  },
+  "backend/factory_tools/dbt_tools.py::freshness": {
+   "cc": 11,
+   "lines": 34
+  },
+  "backend/factory_tools/dbt_tools.py::lineage": {
+   "cc": 3,
+   "lines": 26
+  },
+  "backend/factory_tools/dbt_tools.py::list_resources": {
+   "cc": 15,
+   "lines": 30
+  },
+  "backend/factory_tools/gates.py::_file": {
+   "cc": 2,
+   "lines": 3
+  },
+  "backend/factory_tools/gates.py::_pack": {
+   "cc": 5,
+   "lines": 4
+  },
+  "backend/factory_tools/gates.py::code_gates": {
+   "cc": 39,
+   "lines": 118
+  },
+  "backend/factory_tools/gates.py::data_gates": {
+   "cc": 5,
+   "lines": 13
+  },
+  "backend/factory_tools/gates.py::parse_waivers": {
+   "cc": 3,
+   "lines": 2
+  },
+  "backend/factory_tools/gates.py::run_gates": {
+   "cc": 4,
+   "lines": 13
+  },
+  "backend/factory_tools/quality.py::Q": {
+   "cc": 1,
+   "lines": 2
+  },
+  "backend/factory_tools/quality.py::R": {
+   "cc": 1,
+   "lines": 2
+  },
+  "backend/factory_tools/quality.py::_f": {
+   "cc": 2,
+   "lines": 5
+  },
+  "backend/factory_tools/quality.py::check": {
+   "cc": 1,
+   "lines": 2
+  },
+  "backend/factory_tools/quality.py::data_quality_gate": {
+   "cc": 13,
+   "lines": 44
+  },
+  "backend/factory_tools/quality.py::declared_grain": {
+   "cc": 7,
+   "lines": 8
+  },
+  "backend/factory_tools/quality.py::fanout_check": {
+   "cc": 41,
+   "lines": 72
+  },
+  "backend/factory_tools/quality.py::generate_tests": {
+   "cc": 50,
+   "lines": 100
+  },
+  "backend/factory_tools/quality.py::grain_check": {
+   "cc": 6,
+   "lines": 23
+  },
+  "backend/factory_tools/quality.py::null_check": {
+   "cc": 14,
+   "lines": 20
+  },
+  "backend/factory_tools/quality.py::preview_sanity": {
+   "cc": 7,
+   "lines": 11
+  },
+  "backend/factory_tools/quality.py::reconcile": {
+   "cc": 19,
+   "lines": 40
+  },
+  "backend/factory_tools/quality.py::row_count_delta": {
+   "cc": 5,
+   "lines": 15
+  },
+  "backend/factory_tools/quality.py::run_unit_tests": {
+   "cc": 2,
+   "lines": 3
+  },
+  "backend/factory_tools/review.py::_anchor": {
+   "cc": 7,
+   "lines": 14
+  },
+  "backend/factory_tools/review.py::_look_first": {
+   "cc": 6,
+   "lines": 8
+  },
+  "backend/factory_tools/review.py::_risk_for_model": {
+   "cc": 28,
+   "lines": 61
+  },
+  "backend/factory_tools/review.py::_sh": {
+   "cc": 2,
+   "lines": 3
+  },
+  "backend/factory_tools/review.py::_summary": {
+   "cc": 10,
+   "lines": 11
+  },
+  "backend/factory_tools/review.py::build_review": {
+   "cc": 16,
+   "lines": 54
+  },
+  "backend/factory_tools/review.py::changed_models": {
+   "cc": 15,
+   "lines": 26
+  },
+  "backend/factory_tools/review.py::file_diff": {
+   "cc": 3,
+   "lines": 5
+  },
+  "backend/factory_tools/review.py::gate_findings": {
+   "cc": 4,
+   "lines": 16
+  },
+  "backend/factory_tools/review.py::heuristic_findings": {
+   "cc": 14,
+   "lines": 57
+  },
+  "backend/factory_tools/review.py::impact": {
+   "cc": 8,
+   "lines": 9
+  },
+  "backend/factory_tools/warehouse.py::QueryError": {
+   "cc": 1,
+   "lines": 2
+  },
+  "backend/factory_tools/warehouse.py::ReadOnlyViolation": {
+   "cc": 1,
+   "lines": 2
+  },
+  "backend/factory_tools/warehouse.py::_err": {
+   "cc": 10,
+   "lines": 7
+  },
+  "backend/factory_tools/warehouse.py::_jsonable": {
+   "cc": 3,
+   "lines": 6
+  },
+  "backend/factory_tools/warehouse.py::_release_duckdb": {
+   "cc": 9,
+   "lines": 28
+  },
+  "backend/factory_tools/warehouse.py::_show_inproc": {
+   "cc": 18,
+   "lines": 43
+  },
+  "backend/factory_tools/warehouse.py::_src_mtime": {
+   "cc": 6,
+   "lines": 8
+  },
+  "backend/factory_tools/warehouse.py::dbt_bin": {
+   "cc": 2,
+   "lines": 3
+  },
+  "backend/factory_tools/warehouse.py::dialect": {
+   "cc": 1,
+   "lines": 4
+  },
+  "backend/factory_tools/warehouse.py::project_dir": {
+   "cc": 2,
+   "lines": 2
+  },
+  "backend/factory_tools/warehouse.py::query": {
+   "cc": 1,
+   "lines": 3
+  },
+  "backend/factory_tools/warehouse.py::rel_jinja": {
+   "cc": 4,
+   "lines": 9
+  },
+  "backend/factory_tools/warehouse.py::run_dbt": {
+   "cc": 5,
+   "lines": 12
+  },
+  "backend/factory_tools/warehouse.py::sample": {
+   "cc": 1,
+   "lines": 4
+  },
+  "backend/factory_tools/warehouse.py::show": {
+   "cc": 11,
+   "lines": 32
+  },
+  "backend/factory_tools/warehouse.py::validate_select": {
+   "cc": 22,
+   "lines": 32
+  },
+  "backend/main.py::CommentIn": {
+   "cc": 1,
+   "lines": 6
+  },
+  "backend/main.py::EvalIn": {
+   "cc": 1,
+   "lines": 4
+  },
+  "backend/main.py::MsgIn": {
+   "cc": 1,
+   "lines": 2
+  },
+  "backend/main.py::TaskIn": {
+   "cc": 1,
+   "lines": 4
+  },
+  "backend/main.py::VerdictIn": {
+   "cc": 1,
+   "lines": 4
+  },
+  "backend/main.py::_models": {
+   "cc": 3,
+   "lines": 5
+  },
+  "backend/main.py::_run_post_turn_gate": {
+   "cc": 9,
+   "lines": 24
+  },
+  "backend/main.py::add_comment": {
+   "cc": 1,
+   "lines": 18
+  },
+  "backend/main.py::cancel": {
+   "cc": 5,
+   "lines": 18
+  },
+  "backend/main.py::capabilities": {
+   "cc": 3,
+   "lines": 6
+  },
+  "backend/main.py::cleanup": {
+   "cc": 5,
+   "lines": 17
+  },
+  "backend/main.py::comments_to_agent": {
+   "cc": 10,
+   "lines": 18
+  },
+  "backend/main.py::create_task": {
+   "cc": 6,
+   "lines": 46
+  },
+  "backend/main.py::diff": {
+   "cc": 4,
+   "lines": 11
+  },
+  "backend/main.py::emit": {
+   "cc": 8,
+   "lines": 16
+  },
+  "backend/main.py::engine_of": {
+   "cc": 3,
+   "lines": 2
+  },
+  "backend/main.py::eval_cases": {
+   "cc": 2,
+   "lines": 6
+  },
+  "backend/main.py::eval_run": {
+   "cc": 3,
+   "lines": 7
+  },
+  "backend/main.py::eval_runs": {
+   "cc": 5,
+   "lines": 14
+  },
+  "backend/main.py::eval_start": {
+   "cc": 5,
+   "lines": 21
+  },
+  "backend/main.py::events": {
+   "cc": 1,
+   "lines": 14
+  },
+  "backend/main.py::get": {
+   "cc": 2,
+   "lines": 4
+  },
+  "backend/main.py::get_gate": {
+   "cc": 11,
+   "lines": 15
+  },
+  "backend/main.py::get_review": {
+   "cc": 6,
+   "lines": 13
+  },
+  "backend/main.py::health": {
+   "cc": 2,
+   "lines": 14
+  },
+  "backend/main.py::list_comments": {
+   "cc": 2,
+   "lines": 2
+  },
+  "backend/main.py::list_tasks": {
+   "cc": 3,
+   "lines": 7
+  },
+  "backend/main.py::message": {
+   "cc": 5,
+   "lines": 15
+  },
+  "backend/main.py::mock_mode": {
+   "cc": 1,
+   "lines": 2
+  },
+  "backend/main.py::normalize": {
+   "cc": 27,
+   "lines": 46
+  },
+  "backend/main.py::post_verdict": {
+   "cc": 23,
+   "lines": 42
+  },
+  "backend/main.py::pr": {
+   "cc": 6,
+   "lines": 47
+  },
+  "backend/main.py::preview": {
+   "cc": 9,
+   "lines": 22
+  },
+  "backend/main.py::resolve_comment": {
+   "cc": 4,
+   "lines": 8
+  },
+  "backend/main.py::run_task": {
+   "cc": 23,
+   "lines": 103
+  },
+  "backend/main.py::save": {
+   "cc": 3,
+   "lines": 2
+  },
+  "backend/main.py::sh": {
+   "cc": 2,
+   "lines": 3
+  },
+  "backend/main.py::task": {
+   "cc": 3,
+   "lines": 3
+  },
+  "backend/mcp_server.py::_run": {
+   "cc": 3,
+   "lines": 7
+  },
+  "backend/mcp_server.py::data_compare": {
+   "cc": 1,
+   "lines": 10
+  },
+  "backend/mcp_server.py::data_histogram": {
+   "cc": 1,
+   "lines": 3
+  },
+  "backend/mcp_server.py::data_profile": {
+   "cc": 1,
+   "lines": 3
+  },
+  "backend/mcp_server.py::data_quality_gate": {
+   "cc": 1,
+   "lines": 21
+  },
+  "backend/mcp_server.py::data_query": {
+   "cc": 1,
+   "lines": 3
+  },
+  "backend/mcp_server.py::data_sample": {
+   "cc": 1,
+   "lines": 3
+  },
+  "backend/mcp_server.py::dbt_build": {
+   "cc": 1,
+   "lines": 5
+  },
+  "backend/mcp_server.py::dbt_compile": {
+   "cc": 1,
+   "lines": 3
+  },
+  "backend/mcp_server.py::dbt_docs": {
+   "cc": 1,
+   "lines": 3
+  },
+  "backend/mcp_server.py::dbt_failing_test_rows": {
+   "cc": 1,
+   "lines": 3
+  },
+  "backend/mcp_server.py::dbt_lineage": {
+   "cc": 1,
+   "lines": 3
+  },
+  "backend/mcp_server.py::dbt_list": {
+   "cc": 1,
+   "lines": 3
+  },
+  "backend/mcp_server.py::dbt_source_freshness": {
+   "cc": 1,
+   "lines": 3
+  },
+  "backend/mcp_server.py::definition_of_done": {
+   "cc": 1,
+   "lines": 9
+  },
+  "backend/mcp_server.py::generate_dbt_tests": {
+   "cc": 1,
+   "lines": 3
+  },
+  "backend/mock.py::M": {
+   "cc": 1,
+   "lines": 2
+  },
+  "backend/mock.py::Turn": {
+   "cc": 2,
+   "lines": 23
+  },
+  "backend/mock.py::Turn.__init__": {
+   "cc": 1,
+   "lines": 2
+  },
+  "backend/mock.py::Turn.ev": {
+   "cc": 1,
+   "lines": 3
+  },
+  "backend/mock.py::Turn.res": {
+   "cc": 1,
+   "lines": 5
+  },
+  "backend/mock.py::Turn.text": {
+   "cc": 1,
+   "lines": 2
+  },
+  "backend/mock.py::Turn.tool": {
+   "cc": 1,
+   "lines": 5
+  },
+  "backend/mock.py::_followup": {
+   "cc": 15,
+   "lines": 52
+  },
+  "backend/mock.py::_init": {
+   "cc": 4,
+   "lines": 10
+  },
+  "backend/mock.py::_waivers_text": {
+   "cc": 2,
+   "lines": 2
+  },
+  "backend/mock.py::call": {
+   "cc": 2,
+   "lines": 5
+  },
+  "backend/mock.py::run_mock": {
+   "cc": 8,
+   "lines": 51
+  },
+  "backend/mock_solutions.py::pick": {
+   "cc": 4,
+   "lines": 5
+  },
+  "backend/mock_solutions.py::solution": {
+   "cc": 2,
+   "lines": 11
+  },
+  "backend/sdk_runner.py::_block": {
+   "cc": 5,
+   "lines": 12
+  },
+  "backend/sdk_runner.py::main": {
+   "cc": 14,
+   "lines": 67
+  },
+  "backend/sdk_runner.py::out": {
+   "cc": 1,
+   "lines": 2
+  },
+  "backend/sdk_runner.py::to_stream_json": {
+   "cc": 21,
+   "lines": 37
+  },
+  "evals/__main__.py::main": {
+   "cc": 5,
+   "lines": 22
+  },
+  "evals/judge.py::ClaudeCLIJudge": {
+   "cc": 6,
+   "lines": 18
+  },
+  "evals/judge.py::ClaudeCLIJudge.score": {
+   "cc": 5,
+   "lines": 15
+  },
+  "evals/judge.py::NoJudge": {
+   "cc": 2,
+   "lines": 5
+  },
+  "evals/judge.py::NoJudge.score": {
+   "cc": 1,
+   "lines": 2
+  },
+  "evals/judge.py::get_judge": {
+   "cc": 5,
+   "lines": 11
+  },
+  "evals/runner.py::_wait": {
+   "cc": 4,
+   "lines": 12
+  },
+  "evals/runner.py::aggregate": {
+   "cc": 9,
+   "lines": 19
+  },
+  "evals/runner.py::load_cases": {
+   "cc": 4,
+   "lines": 8
+  },
+  "evals/runner.py::run": {
+   "cc": 5,
+   "lines": 60
+  },
+  "evals/runner.py::run_case": {
+   "cc": 24,
+   "lines": 58
+  },
+  "evals/scoring.py::_num": {
+   "cc": 2,
+   "lines": 5
+  },
+  "evals/scoring.py::_rows": {
+   "cc": 1,
+   "lines": 3
+  },
+  "evals/scoring.py::_scalar": {
+   "cc": 2,
+   "lines": 4
+  },
+  "evals/scoring.py::close": {
+   "cc": 3,
+   "lines": 5
+  },
+  "evals/scoring.py::code_assertions": {
+   "cc": 10,
+   "lines": 33
+  },
+  "evals/scoring.py::data_assertions": {
+   "cc": 7,
+   "lines": 27
+  },
+  "evals/scoring.py::frac": {
+   "cc": 5,
+   "lines": 3
+  },
+  "evals/scoring.py::gate_rate": {
+   "cc": 8,
+   "lines": 8
+  },
+  "evals/scoring.py::golden": {
+   "cc": 12,
+   "lines": 36
+  },
+  "evals/scoring.py::overall": {
+   "cc": 8,
+   "lines": 10
+  },
+  "frontend/src/App.tsx::(anonymous)": {
+   "cc": 1,
+   "lines": 1
+  },
+  "frontend/src/App.tsx::ago": {
+   "cc": 98,
+   "lines": 1153
+  },
+  "frontend/src/App.tsx::j": {
+   "cc": 2,
+   "lines": 2
+  },
+  "frontend/src/Evals.tsx::(anonymous)": {
+   "cc": 3,
+   "lines": 15
+  },
+  "frontend/src/Evals.tsx::CaseCard": {
+   "cc": 25,
+   "lines": 66
+  },
+  "frontend/src/Evals.tsx::EvalsPage": {
+   "cc": 28,
+   "lines": 133
+  },
+  "frontend/src/Evals.tsx::d": {
+   "cc": 7,
+   "lines": 2
+  },
+  "frontend/src/Evals.tsx::f": {
+   "cc": 1,
+   "lines": 2
+  },
+  "frontend/src/Evals.tsx::loadRuns": {
+   "cc": 1,
+   "lines": 2
+  },
+  "frontend/src/Evals.tsx::pct": {
+   "cc": 2,
+   "lines": 2
+  },
+  "frontend/src/Evals.tsx::start": {
+   "cc": 1,
+   "lines": 10
+  },
+  "frontend/src/Evals.tsx::tone": {
+   "cc": 3,
+   "lines": 2
+  },
+  "frontend/src/Evals.tsx::when": {
+   "cc": 1,
+   "lines": 2
+  },
+  "frontend/src/Gates.tsx::(anonymous)": {
+   "cc": 2,
+   "lines": 23
+  },
+  "frontend/src/Gates.tsx::GateChip": {
+   "cc": 3,
+   "lines": 13
+  },
+  "frontend/src/Gates.tsx::GateScorecard": {
+   "cc": 2,
+   "lines": 1
+  },
+  "frontend/src/Review.tsx::(anonymous)": {
+   "cc": 1,
+   "lines": 3
+  },
+  "frontend/src/Review.tsx::CodeDiff": {
+   "cc": 3,
+   "lines": 70
+  },
+  "frontend/src/Review.tsx::CommentBox": {
+   "cc": 1,
+   "lines": 8
+  },
+  "frontend/src/Review.tsx::DataCompare": {
+   "cc": 25,
+   "lines": 82
+  },
+  "frontend/src/Review.tsx::ReviewView": {
+   "cc": 1,
+   "lines": 1
+  },
+  "frontend/src/Review.tsx::RiskBadge": {
+   "cc": 3,
+   "lines": 10
+  },
+  "frontend/src/Review.tsx::Stat": {
+   "cc": 3,
+   "lines": 9
+  },
+  "frontend/src/Review.tsx::Thread": {
+   "cc": 1,
+   "lines": 1
+  },
+  "frontend/src/Review.tsx::addComment": {
+   "cc": 1,
+   "lines": 4
+  },
+  "frontend/src/Review.tsx::byLine": {
+   "cc": 2,
+   "lines": 2
+  },
+  "frontend/src/Review.tsx::findingAt": {
+   "cc": 1,
+   "lines": 2
+  },
+  "frontend/src/Review.tsx::flash": {
+   "cc": 1,
+   "lines": 4
+  },
+  "frontend/src/Review.tsx::load": {
+   "cc": 2,
+   "lines": 12
+  },
+  "frontend/src/Review.tsx::parseDiff": {
+   "cc": 8,
+   "lines": 21
+  },
+  "frontend/src/Review.tsx::plain": {
+   "cc": 2,
+   "lines": 3
+  },
+  "frontend/src/Review.tsx::resolve": {
+   "cc": 1,
+   "lines": 4
+  },
+  "frontend/src/Review.tsx::sendToAgent": {
+   "cc": 2,
+   "lines": 9
+  },
+  "frontend/src/Review.tsx::submit": {
+   "cc": 3,
+   "lines": 9
+  },
+  "frontend/src/Review.tsx::useEffect": {
+   "cc": 1,
+   "lines": 3
+  },
+  "frontend/src/ui.tsx::(anonymous)": {
+   "cc": 4,
+   "lines": 5
+  },
+  "frontend/src/ui.tsx::j": {
+   "cc": 2,
+   "lines": 2
+  },
+  "frontend/src/ui.tsx::post": {
+   "cc": 2,
+   "lines": 2
+  },
+  "scripts/ci/complexity_gate.py::collect": {
+   "cc": 17,
+   "lines": 28
+  },
+  "scripts/ci/complexity_gate.py::gate": {
+   "cc": 16,
+   "lines": 24
+  },
+  "scripts/ci/complexity_gate.py::main": {
+   "cc": 4,
+   "lines": 19
+  },
+  "scripts/ci/complexity_gate.py::rank": {
+   "cc": 2,
+   "lines": 2
+  },
+  "scripts/ci/complexity_gate.py::report": {
+   "cc": 8,
+   "lines": 26
+  },
+  "scripts/ci/complexity_gate.py::run": {
+   "cc": 1,
+   "lines": 2
+  }
+ },
+ "modules_mi": {
+  "backend/adapters/__init__.py": 82.35,
+  "backend/engine_config.py": 54.65,
+  "backend/factory_tools/__init__.py": 100.0,
+  "backend/factory_tools/analysis.py": 33.14,
+  "backend/factory_tools/dbt_tools.py": 26.99,
+  "backend/factory_tools/gates.py": 45.64,
+  "backend/factory_tools/quality.py": 11.8,
+  "backend/factory_tools/review.py": 24.9,
+  "backend/factory_tools/warehouse.py": 31.28,
+  "backend/main.py": 0.0,
+  "backend/mcp_server.py": 61.87,
+  "backend/mock.py": 40.98,
+  "backend/mock_solutions.py": 71.35,
+  "backend/prompts.py": 78.59,
+  "backend/sdk_runner.py": 45.71,
+  "evals/__init__.py": 100.0,
+  "evals/__main__.py": 59.28,
+  "evals/judge.py": 65.9,
+  "evals/runner.py": 37.24,
+  "evals/scoring.py": 35.94,
+  "scripts/ci/complexity_gate.py": 48.11
+ }
+}

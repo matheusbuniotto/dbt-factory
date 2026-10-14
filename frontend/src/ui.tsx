@@ -1,5 +1,11 @@
-export const j = (u: string, o?: RequestInit) => fetch(u, o).then(async r => { const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.detail || r.statusText); return d })
-export const post = (u: string, body?: any) => j(u, { method: 'POST', headers: { 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) })
+export const j = (u: string, o?: RequestInit) =>
+  fetch(u, o).then(async (r) => {
+    const d = await r.json().catch(() => ({}))
+    if (!r.ok) throw new Error(d.detail || r.statusText)
+    return d
+  })
+export const post = (u: string, body?: any) =>
+  j(u, { method: 'POST', headers: { 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) })
 
 export const STATUS_STYLE: Record<string, { dot: string; text: string; label: string }> = {
   pass: { dot: 'bg-[#4ade80]', text: 'text-[#86efac]', label: 'Pass' },

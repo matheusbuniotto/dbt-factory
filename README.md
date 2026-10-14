@@ -1,18 +1,27 @@
 # dbt factory
 
+[![CI](https://github.com/matheusbuniotto/dbt-factory/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/matheusbuniotto/dbt-factory/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/matheusbuniotto/dbt-factory/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/matheusbuniotto/dbt-factory/actions/workflows/codeql.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/matheusbuniotto/dbt-factory/badge)](https://scorecard.dev/viewer/?uri=github.com/matheusbuniotto/dbt-factory)
+[![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-fe5196.svg)](https://conventionalcommits.org)
+[![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://pre-commit.com)
+
 Droid-style "software factory" for analytics engineers: describe a dbt change, an agent works in its own git worktree, runs `dbt build`, and the UI streams plan / tool calls / diff / SQL / data preview.
 
 ## Setup
+
 Requirements: Python 3.12 + [uv](https://docs.astral.sh/uv/), Node 20+, git. Optional: `gh` (PRs / review verdicts) and the `claude` CLI (live engines).
 
-```
+```bash
 ./scripts/setup.sh       # .venv, frontend deps, clones jaffle_shop_duckdb into projects/ and builds its prod warehouse
 ./run.sh                 # kills old instances, starts API :8787 and UI :5173
 open http://localhost:5173
 ```
+
 Without credentials everything runs on the `mock` engine (real dbt work, canned agent stream).
 
 ## Engines (`FACTORY_ENGINE=auto|mock|cli|sdk`)
+
 | engine | what runs | notes |
 |---|---|---|
 | `mock` | `backend/mock.py` | Replays a canned Claude-Code stream but really edits models and runs dbt. Default when no credentials. |
@@ -23,6 +32,7 @@ Without credentials everything runs on the `mock` engine (real dbt work, canned 
 Both live engines use the same system prompt (`backend/prompts.py`), tools `Read, Write, Edit, Glob, Grep, Bash(dbt:*), Bash(ls:*), Bash(cat:*)`, `acceptEdits`, cwd = task worktree, `FACTORY_MAX_TURNS` (40). Cancel kills the engine's process group.
 
 Credentials (picked up by both live engines; `/api/health` reports `auth`):
+
 - `claude login` (subscription) → `~/.claude/.credentials.json`
 - `ANTHROPIC_API_KEY`
 - gateway: `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN` (e.g. LiteLLM)
@@ -30,30 +40,38 @@ Credentials (picked up by both live engines; `/api/health` reports `auth`):
 Other env: `FACTORY_MODEL` (passed as `--model` / `model=`), `CLAUDE_CODE_MAX_RETRIES` (default 2 so bad credentials fail fast), `DBT_FACTORY_ADAPTER=duckdb|databricks`.
 
 ## External gateway (LiteLLM or any Anthropic-compatible proxy)
+
 The factory does not ship or run a proxy. Point it at the gateway your platform provides:
 
-```
+```bash
 FACTORY_ENGINE=sdk FACTORY_MODEL=<model-name-on-gateway> \
 ANTHROPIC_BASE_URL=https://your-gateway ANTHROPIC_AUTH_TOKEN=<token> \
 ./run.sh
 ```
+
 The gateway must expose the Anthropic Messages API (`/v1/messages`). Non-Claude models must be good at tool calling; quality varies.
 
 ## Tests
+
 `.venv/bin/python -m pytest -q backend/tests` (SDK message → UI event normalization).
 
 ## API
+
 `POST /api/tasks {prompt, engine?}` · `GET /api/tasks[/{id}]` · `GET /api/tasks/{id}/events?since=N` (SSE) · `POST /api/tasks/{id}/messages {content}` · `POST /api/tasks/{id}/cancel` · `GET /api/tasks/{id}/diff` · `GET /api/tasks/{id}/preview` · `POST /api/tasks/{id}/pr` · `POST /api/tasks/{id}/cleanup[?delete_branch=true]` · `GET /api/health`
 
 ## Agent tooling: `dbt-factory-tools` MCP server (`backend/mcp_server.py`)
+
 Local stdio MCP server, registered per task: the CLI gets `--mcp-config .factory/mcp.json`, the SDK gets `mcp_servers=`. Allowed as `mcp__dbt-factory-tools`.
+
 - dbt: `dbt_list` (manifest search + selectors), `dbt_lineage` (up/downstream by level), `dbt_compile`, `dbt_build` (build/test/run with selectors, structured `run_results.json`), `dbt_failing_test_rows`, `dbt_docs`, `dbt_source_freshness`
 - data: `data_profile`, `data_histogram`, `data_compare` (prod vs dev target: row delta, schema, column stats, key-based diff), `data_sample`, `data_query` (read-only SELECT, LIMIT ≤ 500, timeout)
 
 ### No local data (hard rule)
-All data goes through the configured dbt target via `dbt show --inline` (`backend/factory_tools/warehouse.py`). SQL is built from dbt macros (`adapter.get_columns_in_relation`, `adapter.quote`, `dbt.type_string()`), so it stays adapter-agnostic. Each task profile has `dev` (the task's schema/db) and `prod` (baseline) targets. Ad-hoc SQL is parsed with sqlglot: one SELECT only; no DML/DDL, no jinja beyond `ref`/`source`, no file readers (`read_csv`, `'x.parquet'`, `parquet.\`path\``). The agent can't `Read`/`Edit` data files (csv/parquet/duckdb/seeds/…), and `cat/head/python/duckdb/…` are disallowed in Bash. The UI preview also uses `dbt show`.
+
+All data goes through the configured dbt target via `dbt show --inline` (`backend/factory_tools/warehouse.py`). SQL is built from dbt macros (`adapter.get_columns_in_relation`, `adapter.quote`, `dbt.type_string()`), so it stays adapter-agnostic. Each task profile has `dev` (the task's schema/db) and `prod` (baseline) targets. Ad-hoc SQL is parsed with sqlglot: one SELECT only; no DML/DDL, no jinja beyond `ref`/`source`, no file readers (`read_csv`, `'x.parquet'`, `parquet.\`path\``). The agent can't`Read`/`Edit` data files (csv/parquet/duckdb/seeds/…), and `cat/head/python/duckdb/…` are disallowed in Bash. The UI preview also uses `dbt show`.
 
 ### Project skills
+
 Both engines load project settings and skills (`--setting-sources project` / `setting_sources=["project"]`, plus the `Skill` tool). The demo repo has `.claude/skills/dbt-model-conventions`. The UI composer chip "N skills · M mcp tools" lists the skills and MCP tools, taken from the engine's init event (or a static scan in mock mode).
 
 Tests: `.venv/bin/python -m pytest -q backend/tests` (~45 tests, ~3 min: SQL guard, every tool against a real worktree, MCP over stdio, SDK normalization).
@@ -88,4 +106,9 @@ Six jaffle cases under `evals/cases/`. Scores: data 50% · code 25% · gates 25%
 `docs/BEST_PRACTICES.md` is appended to the system prompt and shipped as a skill template in `docs/skills-template/`. Project skills under `.claude/skills/` win on conflicts.
 
 ## Screenshots
+
 `screenshots/` — `gate-scorecard.png`, `review-analyst.png`, `review-verdict.png`, `evals-compare.png`, `tools-profile-compare.png`, … Sample eval result: `evals/results/mock-final.json`.
+
+## CI
+
+A multi-stage GitHub Actions pipeline covers hygiene, static analysis, complexity, security, tests, data/evals, frontend and container. See [docs/CI.md](docs/CI.md).

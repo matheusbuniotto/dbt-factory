@@ -1,0 +1,65 @@
+[project]
+name = "dbt-factory"
+version = "0.1.0"
+description = "Software factory for analytics engineers: dbt agents in git worktrees, DoD gates, evals, analyst review."
+requires-python = ">=3.11"
+readme = "README.md"
+license = { text = "MIT" }
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = ["projects", "worktrees", "state", "frontend", ".venv"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "C4", "SIM", "C90", "RUF100"]
+ignore = [
+  "E501",    # formatter owns line length; long SQL/prompt literals are intentional
+  "SIM115",  # short-lived open() in CLI-style tools; tracked for refactor
+  "SIM105",  # contextlib.suppress is not clearer here
+  "B904",    # HTTPException re-raise without `from` is FastAPI idiom
+  "B008",
+  "E741",    # `l` for a line in short comprehensions is readable in this codebase
+]
+
+[tool.ruff.lint.per-file-ignores]
+"backend/tests/*" = ["E402"]  # tests extend sys.path before importing backend modules
+
+[tool.ruff.lint.mccabe]
+max-complexity = 25   # hard ceiling; the stricter per-function gate lives in xenon (see docs/CI.md)
+
+[tool.ruff.lint.isort]
+known-first-party = ["factory_tools", "adapters", "engine_config", "prompts", "mock_solutions", "evals"]
+
+[tool.ruff.format]
+quote-style = "preserve"
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+follow_imports = "silent"
+warn_unused_configs = true
+warn_redundant_casts = true
+check_untyped_defs = false
+mypy_path = "backend"
+explicit_package_bases = true
+exclude = ["^projects/", "^worktrees/", "^frontend/"]
+
+[tool.pytest.ini_options]
+testpaths = ["backend/tests"]
+junit_family = "xunit2"
+
+[tool.coverage.run]
+branch = true
+source = ["backend", "evals"]
+omit = ["backend/tests/*", "backend/sdk_runner.py"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+
+[tool.bandit]
+exclude_dirs = ["backend/tests", "projects", "worktrees", "frontend"]
+# B404/B603/B607: subprocess with fixed argv (dbt, git, gh, sqlfluff) is the product; no shell=True with user input.
+# B608: SQL is built from dbt macros and validated by the sqlglot read-only guard (warehouse.validate_select).
+skips = ["B404", "B603", "B607", "B608", "B110", "B112"]

@@ -1,0 +1,11 @@
+# Expected outcome of each seeded case under the deterministic mock engine.
+# The CI "data" stage fails if any case flips (a regression in gates/scoring, or a trap that stopped being caught).
+engine: mock
+cases:
+  monthly_revenue: pass # correct mart
+  fanout_trap: fail # count() after a payments join inflates number_of_orders
+  grain_ambiguity: pass # composite grain (order_date, status)
+  null_handling: fail # missing coalesce -> nulls for customers without orders
+  month_boundary: fail # `< '2018-03-31'` drops the last day of March
+  status_summary: pass
+min_pass_rate: 0.5

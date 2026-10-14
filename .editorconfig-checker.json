@@ -1,0 +1,13 @@
+{
+  "Exclude": [
+    "^projects/",
+    "^worktrees/",
+    "^state/",
+    "^screenshots/",
+    "\\.woff2$",
+    "package-lock\\.json$",
+    "\\.ci/complexity-baseline\\.json$",
+    "^evals/results/"
+  ],
+  "Disable": { "IndentSize": true, "MaxLineLength": true }
+}
