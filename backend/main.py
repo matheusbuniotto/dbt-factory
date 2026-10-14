@@ -81,7 +81,10 @@ def sh(argv: list[str], cwd, **kw):
     """Run a fixed program with an argv list (never a shell). Free text goes via stdin (`input=`), not argv."""
     if not isinstance(argv, list):
         raise TypeError("sh() takes an argv list")
-    return subprocess.run(argv, cwd=cwd, capture_output=True, text=True, check=False, **kw)
+    try:
+        return subprocess.run(argv, cwd=cwd, capture_output=True, text=True, check=False, **kw)
+    except FileNotFoundError as e:  # optional tools (gh, claude) may be absent, e.g. in the container
+        return subprocess.CompletedProcess(argv, 127, "", f"{argv[0]}: not installed ({e.strerror})")
 
 
 def emit(t, kind, **data):
