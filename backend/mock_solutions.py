@@ -267,7 +267,40 @@ models:
 )
 
 
-def pick(prompt):
+# The canned solutions above target the bundled jaffle_shop demo; they need these models to exist.
+DEMO_MODELS = {"orders", "customers", "stg_orders", "stg_payments", "stg_customers"}
+
+
+def generic(prompt, models):
+    """Project-agnostic mock: a thin documented mart on top of an existing model (any dbt project)."""
+    words = set(re.findall(r"[a-z]+", (prompt or "").lower()))
+    base = next((m for m in models if set(m.lower().split("_")) & words), None) or (
+        sorted(models)[0] if models else None
+    )
+    if not base:
+        return None
+    name = f"fct_factory_{re.sub(r'^(stg_|int_|fct_|dim_|mart_)', '', base)}"[:60]
+    return {
+        "model": name,
+        "base": base,
+        "sql": f"with base as (\n    select * from {{{{ ref('{base}') }}}}\n)\n\nselect * from base\n",
+        "yml": f"""version: 2
+
+models:
+  - name: {name}
+    description: Mock mart on top of {base} (dbt-factory mock engine, project-agnostic).
+""",
+        "plan": f"- Inspect `{base}` and its lineage\n- Add `{name}` selecting from it\n- Build and run the Definition of Done",
+        "summary": f"{name} built on {base}.",
+        "waivers": {"reconciles": "mock model mirrors its parent"},
+        "followup": None,
+    }
+
+
+def pick(prompt, models=None):
+    """Demo solutions when the demo models exist (or models unknown), else a generic one."""
+    if models is not None and not set(models) >= DEMO_MODELS:
+        return generic(prompt, models)
     for s in SOLUTIONS:
         if s["re"].search(prompt or ""):
             return s

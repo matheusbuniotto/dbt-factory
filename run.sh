@@ -1,6 +1,16 @@
 #!/usr/bin/env bash
-# Start dbt-factory (kills previous instances first). FACTORY_MOCK=auto|1|0  DBT_FACTORY_ADAPTER=duckdb|databricks
-set -u; cd "$(dirname "$0")" || exit 1; ROOT=$(pwd); export PATH="$HOME/.local/bin:$PATH"
+# Start dbt-factory (kills previous instances first). FACTORY_MOCK=auto|1|0
+# usage: ./run.sh [--project PATH]   (or FACTORY_PROJECT=PATH ./run.sh); default: the bundled demo (projects/jaffle_shop)
+set -u
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --project) [ $# -ge 2 ] || { echo "--project needs a path" >&2; exit 2; }; FACTORY_PROJECT=$(cd "$2" && pwd) || exit 2; export FACTORY_PROJECT; shift 2 ;;
+    --project=*) FACTORY_PROJECT=$(cd "${1#*=}" && pwd) || exit 2; export FACTORY_PROJECT; shift ;;
+    -h|--help) sed -n 2,3p "$0"; exit 0 ;;
+    *) echo "unknown argument: $1" >&2; exit 2 ;;
+  esac
+done
+cd "$(dirname "$0")" || exit 1; ROOT=$(pwd); export PATH="$HOME/.local/bin:$PATH"
 stop() {
   pkill -f "$ROOT/.venv/bin/uvicorn main:app" ; pkill -f "uvicorn main:app --host 0.0.0.0 --port 8787"
   pkill -f "$ROOT/frontend/node_modules/.bin/vite"; pkill -f "npm exec vite"

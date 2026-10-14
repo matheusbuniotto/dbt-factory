@@ -20,6 +20,57 @@ open http://localhost:5173
 
 Without credentials everything runs on the `mock` engine (real dbt work, canned agent stream).
 
+## Use with your repo
+
+dbt-factory works on any local git repo. The bundled `jaffle_shop` demo (set up by `scripts/setup.sh`) is only the default.
+
+```bash
+./run.sh --project ~/code/analytics            # or: FACTORY_PROJECT=~/code/analytics ./run.sh
+```
+
+You can also register more repos in the UI: on the new-session screen, use the project picker and click **Add repo**. Registered repos are
+saved in `state/projects.json` (paths must be under `$HOME`, the folder containing dbt-factory, or `FACTORY_ALLOWED_ROOTS`), the sidebar groups sessions by project, and each task records which project it ran against.
+
+**What gets detected** (`GET /api/projects` shows the result, including errors and warnings):
+
+| | |
+|---|---|
+| dbt project | `dbt_project.yml` anywhere in the tree, so monorepos work (e.g. `analytics/dbt`). If there are several, set `dbt_project_dir`. |
+| profile | Searched in this order: `profiles_dir` from config, then the project's `profiles.yml`, then `$DBT_PROFILES_DIR`, then `~/.dbt/profiles.yml`. |
+| adapter | Taken from the profile output `type`: duckdb, databricks, snowflake, bigquery, postgres (others best effort). The SQL dialect follows. |
+| targets | `dev` is the profile default target. `prod` is the `prod` output if it exists, or `targets.prod` from config. |
+| dbt version | Checks `require-dbt-version` and that the adapter plugin is installed. |
+| plain SQL | A repo with `.sql` files but no dbt project. The agent edits the SQL, and gates are limited to sqlfluff and style checks. Data gates are skipped, and the UI says so. |
+
+### Safety model
+
+- **Your working tree is never touched.** Every task runs in a `git worktree` of your repo, on branch `factory/<id>`. The repo must be a git repo with at least one commit; a folder that isn't one is refused with a clear message.
+- **Isolated dev target.** Each task gets its own profile in `<worktree>/.factory/profiles.yml`:
+  - `dev` is private: on duckdb, a file inside the worktree; on warehouses, your dev schema or dataset plus `_factory_<task>`.
+  - `prod` is your prod output, read-only: duckdb opens it with `access_mode: READ_ONLY`, and elsewhere it is only read through `dbt show` (read-only SELECT with a LIMIT).
+  - Profiles keep `env_var()` references, so no secrets are copied out of your environment.
+- **Bootstrap.** On duckdb the task runs `dbt seed` + `dbt run` into its private dev file, so new models have their parents. Warehouses default to `bootstrap: none`, so nothing is built until the agent builds its own models.
+- **Factory scratch files are never committed or shown in the diff.** `.factory/`, `target/`, `logs/` and `*.duckdb` stay out of commits and diffs.
+
+**Repo-local config** (`.factory/config.yml`, in the dbt project dir or the repo root; all keys optional):
+
+```yaml
+dbt_project_dir: analytics/dbt     # monorepo: which dbt project to use
+profiles_dir: .ci/profiles         # explicit profiles dir
+targets: { dev: dev, prod: prod }  # output names in your profile
+grain:                             # grain conventions (exact name or glob)
+  fct_orders: [order_id]
+  "fct_daily_*": [date_day]
+protected_paths: [models/finance/*] # editing these fails the protected_paths gate
+layer_prefixes: [stg_, int_, fct_, dim_, mart_]
+eval_cases_dir: .factory/evals     # repo-local eval cases: python -m evals run --project <repo>
+bootstrap: none                    # full = seed+run the base project into dev
+sql: { dialect: postgres, paths: [queries] } # plain-SQL repos
+```
+
+The agent also loads `.claude/skills/*` and your SQL style config from the repo. Eval cases can name their target repo with
+`project: <path>` (the bundled cases use `projects/jaffle_shop`).
+
 ## Engines (`FACTORY_ENGINE=auto|mock|cli|sdk`)
 
 | engine | what runs | notes |

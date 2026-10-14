@@ -28,3 +28,15 @@ Do not run git commands; the factory commits for you. Stay inside the cwd.
 # Best practices (also available as the dbt-data-agent skill)
 {_BEST}
 """
+
+
+SQL_MODE_NOTE = """
+# PLAIN SQL MODE (overrides the dbt workflow above)
+This repository has no dbt project. Edit/create .sql files only, following the repo's existing style and folders.
+There is no dbt target: the dbt_* and data_* MCP tools are unavailable, and you must NOT connect to any database or
+read data files. Do not invent results. Lint is checked by the factory (sqlfluff). Finish with a 2-line summary.
+"""
+
+
+def system_prompt(mode: str = "dbt") -> str:
+    return SYSTEM_PROMPT + (SQL_MODE_NOTE if mode == "sql" else "")

@@ -1,5 +1,6 @@
 id: null_handling
 title: Customer LTV with zero for customers without orders
+project: projects/jaffle_shop # repo-relative or absolute path of the dbt repo this case runs against
 tags: [tricky, nulls]
 request: Build dim_customer_ltv with lifetime value per customer; customers with no orders should show 0 lifetime value, not null.
 target_model: dim_customer_ltv

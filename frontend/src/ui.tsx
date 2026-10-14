@@ -1,7 +1,12 @@
+// FastAPI detail can be a string or {message, errors[]}
+type Detail = string | { message?: string; errors?: string[] } | null | undefined
+export const errText = (d: Detail): string =>
+  !d ? '' : typeof d === 'string' ? d : [d.message, ...(d.errors || [])].filter(Boolean).join(' · ') || JSON.stringify(d)
+
 export const j = (u: string, o?: RequestInit) =>
   fetch(u, o).then(async (r) => {
     const d = await r.json().catch(() => ({}))
-    if (!r.ok) throw new Error(d.detail || r.statusText)
+    if (!r.ok) throw new Error(errText(d.detail) || r.statusText)
     return d
   })
 export const post = (u: string, body?: any) =>
@@ -37,4 +42,7 @@ export const CHECK_LABEL: Record<string, [string, string]> = {
   row_count_delta: ['Row count vs prod', 'Change in rows is within ±5% or explained'],
   reconciles: ['Totals reconcile', 'Aggregates match prod or a reference query'],
   preview_sanity: ['Preview looks sane', 'Non-empty, no all-null columns'],
+  protected_paths: ['Protected paths untouched', 'No edits under protected_paths in .factory/config.yml'],
+  data_gates: ['Data checks', 'Skipped: plain SQL repo (no dbt target)'],
+  sql_changed: ['SQL changed', 'At least one .sql file was edited'],
 }

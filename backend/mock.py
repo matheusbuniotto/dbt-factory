@@ -4,6 +4,7 @@ Solutions come from mock_solutions.pick(prompt); some are intentionally flawed (
 
 import json
 import os
+import re
 import sys
 import time
 
@@ -13,6 +14,7 @@ from engine_config import ALLOWED_TOOLS, MCP_NAME, mcp_tool_names, project_skill
 from factory_tools import analysis as A
 from factory_tools import dbt_tools as D
 from factory_tools import gates as G
+from factory_tools import project_ctx as P
 
 DELAY = float(os.environ.get("FACTORY_MOCK_DELAY", "0.4"))
 
@@ -78,8 +80,23 @@ def run_mock(prompt, cwd, env, followup=False):
     if followup:
         yield from _followup(T, prompt, cwd)
         return
-    sol = mock_solutions.pick(prompt)
+    if P.mode(cwd) == "sql":
+        yield from _sql_mode(T, prompt, cwd)
+        return
+    try:
+        models = [r["name"] for r in D.list_resources("model", cwd=cwd)["resources"]]
+    except Exception:
+        models = None
+    sol = mock_solutions.pick(prompt, models)
+    if not sol:
+        yield T.text("[MOCK MODE] This project has no models to build on.")
+        yield json.dumps(
+            {"type": "result", "subtype": "success", "is_error": False, "num_turns": 1, "result": "nothing to do"}
+        )
+        return
     model = sol["model"]
+    anchor = sol.get("base") or "orders"
+    mdir = P.model_paths(cwd)[0]
     yield T.text(f"[MOCK MODE] Request: {prompt}\nI'll inspect the project and load the team's skills first.")
     for sk in ("dbt-data-agent", "dbt-model-conventions"):
         p = os.path.join(cwd, f".claude/skills/{sk}/SKILL.md")
@@ -90,13 +107,14 @@ def run_mock(prompt, cwd, env, followup=False):
     i, e = T.tool(M("dbt_list"), {"resource_type": "model"})
     yield e
     yield T.res(i, call(D.list_resources, "model", cwd=cwd))
-    i, e = T.tool(M("dbt_lineage"), {"name": "orders", "direction": "both"})
+    i, e = T.tool(M("dbt_lineage"), {"name": anchor, "direction": "both"})
     yield e
-    yield T.res(i, call(D.lineage, "orders", "both", cwd=cwd))
+    yield T.res(i, call(D.lineage, anchor, "both", cwd=cwd))
     yield T.text(f"<plan>\n{sol['plan']}\n</plan>")
-    for path, body in ((f"models/{model}.sql", sol["sql"]), (f"models/{model}.yml", sol["yml"])):
+    for path, body in ((f"{mdir}/{model}.sql", sol["sql"]), (f"{mdir}/{model}.yml", sol["yml"])):
         i, e = T.tool("Write", {"file_path": path, "content": body})
         yield e
+        os.makedirs(os.path.dirname(os.path.join(cwd, path)), exist_ok=True)
         open(os.path.join(cwd, path), "w").write(body)
         yield T.res(i, "File created")
     i, e = T.tool(M("dbt_build"), {"select": f"{model}+"})
@@ -127,18 +145,27 @@ def run_mock(prompt, cwd, env, followup=False):
     )
 
 
+def _factory_model(cwd):
+    """The model the first turn created (fct_/dim_/int_ prefix) in this worktree."""
+    for mp in P.model_paths(cwd):
+        for _r, _d, fs in os.walk(os.path.join(cwd, mp)):
+            for f in sorted(fs):
+                if f.endswith(".sql") and f.startswith(("fct_", "dim_", "int_", "monthly_")):
+                    return f[:-4]
+    return "fct_monthly_revenue"
+
+
 def _followup(T, prompt, cwd):
     # find the factory model in this worktree
-    models = [
-        f[:-4]
-        for f in os.listdir(os.path.join(cwd, "models"))
-        if f.endswith(".sql") and f.startswith(("fct_", "dim_", "int_", "monthly_"))
-    ]
-    model = models[0] if models else "fct_monthly_revenue"
+    if P.mode(cwd) == "sql":
+        yield from _sql_mode(T, prompt, cwd)
+        return
+    model = _factory_model(cwd)
     yield T.text(
         f"[MOCK MODE] Follow-up: {prompt}\n<plan>\n- Address review comments on `{model}`\n- Fix nulls / fan-out if flagged\n- Re-run Definition of Done\n</plan>"
     )
-    p = os.path.join(cwd, f"models/{model}.sql")
+    rel = P.find_model_file(model, cwd) or f"models/{model}.sql"
+    p = os.path.join(cwd, rel)
     sql = open(p).read()
     fixed = sql
     # fix known flaws when asked
@@ -155,7 +182,7 @@ def _followup(T, prompt, cwd):
             "    round(sum(amount) / count(distinct order_id), 2) as avg_order_value\n",
             "    round(sum(amount) / count(distinct order_id), 2) as avg_order_value,\n    round(sum(amount) / count(distinct customer_id), 2) as revenue_per_customer\n",
         )
-    i, e = T.tool("Edit", {"file_path": f"models/{model}.sql", "old_string": "...", "new_string": fixed[-400:]})
+    i, e = T.tool("Edit", {"file_path": rel, "old_string": "...", "new_string": fixed[-400:]})
     yield e
     open(p, "w").write(fixed)
     yield T.res(i, "Edited" if fixed != sql else "No change needed")
@@ -179,6 +206,35 @@ def _followup(T, prompt, cwd):
             "num_turns": T.n + 2,
             "total_cost_usd": 0.0,
             "result": f"Follow-up applied to {model} (mock).",
+        }
+    )
+
+
+def _sql_mode(T, prompt, cwd):
+    """Plain-SQL repo: write one clean query file, then lint/style gates (no data access possible)."""
+    ctx = P.load(cwd)
+    folder = (ctx.get("sql_paths") or [""])[0]
+    slug = "_".join(re.findall(r"[a-z0-9]+", (prompt or "query").lower())[:5]) or "query"
+    path = os.path.join(folder, f"factory_{slug}.sql")
+    body = f"-- {prompt[:100]}\nselect\n    1 as id,\n    'mock' as source\n"
+    yield T.text(f"[MOCK MODE] Plain SQL repo. Request: {prompt}\n<plan>\n- Add `{path}`\n- Lint it\n</plan>")
+    i, e = T.tool("Write", {"file_path": path, "content": body})
+    yield e
+    os.makedirs(os.path.dirname(os.path.join(cwd, path)) or cwd, exist_ok=True)
+    open(os.path.join(cwd, path), "w").write(body)
+    yield T.res(i, "File created")
+    g = G.sql_gates(cwd, files=[path])
+    yield T.text(
+        f"SQL gates: {'green' if g['passed'] else 'red on ' + ', '.join(g['failed'])}. Data gates skipped (plain SQL mode)."
+    )
+    yield json.dumps(
+        {
+            "type": "result",
+            "subtype": "success",
+            "is_error": False,
+            "num_turns": T.n + 2,
+            "total_cost_usd": 0.0,
+            "result": f"wrote {path} (mock)",
         }
     )
 

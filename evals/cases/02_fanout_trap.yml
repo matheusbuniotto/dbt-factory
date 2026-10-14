@@ -1,5 +1,6 @@
 id: fanout_trap
 title: Customer payments (join fan-out trap)
+project: projects/jaffle_shop # repo-relative or absolute path of the dbt repo this case runs against
 tags: [tricky, fan-out]
 request: Build fct_customer_payments with one row per customer, number of orders and total paid across payments.
 target_model: fct_customer_payments

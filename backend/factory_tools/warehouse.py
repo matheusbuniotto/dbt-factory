@@ -38,10 +38,12 @@ def dbt_bin():
     )
 
 
-def dialect():
-    from adapters import get_adapter
+def dialect(cwd=None):
+    """sqlglot dialect for the task's warehouse (from .factory/project.json, else the env adapter)."""
+    from . import project_ctx as P
 
-    return get_adapter().dialect
+    d = P.dialect(cwd or project_dir())
+    return {"sparksql": "spark", "ansi": None}.get(d, d)
 
 
 def run_dbt(args, cwd=None, timeout=DEFAULT_TIMEOUT, tools_target=True):
@@ -305,7 +307,13 @@ def show(sql: str, limit: int = 50, target: str | None = None, timeout: int = DE
 
 def query(sql: str, limit: int = 50, target: str | None = None, timeout: int = 60, cwd=None) -> dict:
     """Ad-hoc read-only SELECT (validated) with enforced LIMIT and timeout."""
-    return show(validate_select(sql), limit=limit, target=target, timeout=min(int(timeout), DEFAULT_TIMEOUT), cwd=cwd)
+    return show(
+        validate_select(sql, read=dialect(cwd)),
+        limit=limit,
+        target=target,
+        timeout=min(int(timeout), DEFAULT_TIMEOUT),
+        cwd=cwd,
+    )
 
 
 def sample(relation: str, limit: int = 20, target: str | None = None, cwd=None) -> dict:

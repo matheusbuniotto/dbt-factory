@@ -1,0 +1,15 @@
+version: 2
+
+models:
+  - name: stg_items
+    description: Items staging.
+    columns:
+      - name: item_id
+        description: Item key.
+        data_tests: [unique, not_null]
+  - name: items
+    description: Items with a premium flag.
+    columns:
+      - name: item_id
+        description: Item key.
+        data_tests: [unique, not_null]

@@ -1,0 +1,6 @@
+name: mini
+version: '1.0.0'
+profile: mini
+model-paths: ['models']
+seed-paths: ['seeds']
+require-dbt-version: '>=1.8.0'

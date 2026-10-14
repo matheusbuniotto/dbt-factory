@@ -1,5 +1,6 @@
 id: grain_ambiguity
 title: Daily orders by status (composite grain)
+project: projects/jaffle_shop # repo-relative or absolute path of the dbt repo this case runs against
 tags: [tricky, grain]
 request: Build daily orders by status — orders count and amount per day per status.
 target_model: fct_daily_orders_by_status

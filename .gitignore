@@ -28,3 +28,6 @@ junit*.xml
 complexity-report.md
 eval-scorecard.md
 .lighthouseci/
+
+# test fixture repos carry their own repo-local factory config
+!backend/tests/fixtures/**/.factory/
