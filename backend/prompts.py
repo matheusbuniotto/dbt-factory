@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 _BP = Path(__file__).resolve().parents[1] / "docs" / "BEST_PRACTICES.md"
 _BEST = _BP.read_text() if _BP.exists() else ""
@@ -27,3 +28,9 @@ Do not run git commands; the factory commits for you. Stay inside the cwd.
 # Best practices (also available as the dbt-data-agent skill)
 {_BEST}
 """
+
+
+def system_prompt(cwd=None, project=None):
+    """Base prompt + the repo/task SQL style (rules source + human guide)."""
+    from factory_tools import sql_style as ST
+    return SYSTEM_PROMPT + ST.prompt_block(ST.discover(cwd, project or os.environ.get("DBT_PROJECT")))

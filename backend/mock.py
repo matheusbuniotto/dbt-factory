@@ -1,3 +1,5 @@
+import subprocess
+import re
 """Mock engine: emits Claude-Code-shaped stream-json events but does real work
 (writes a model, builds it, runs MCP tools + Definition of Done) so diff/preview/gates are genuine.
 Solutions come from mock_solutions.pick(prompt); some are intentionally flawed (fan-out, nulls, month boundary)."""
@@ -75,6 +77,16 @@ def _followup(T, prompt, cwd):
     if fixed == sql and "revenue_per_customer" not in sql and "sum(amount) as revenue" in sql:
         fixed = sql.replace("    round(sum(amount) / count(distinct order_id), 2) as avg_order_value\n",
                             "    round(sum(amount) / count(distinct order_id), 2) as avg_order_value,\n    round(sum(amount) / count(distinct customer_id), 2) as revenue_per_customer\n")
+    if re.search(r"\b(SELECT|FROM|GROUP BY)\b", sql):
+        # style follow-up: apply the team style with `sqlfluff fix` using the repo/task style config
+        from factory_tools import sql_style as ST
+        from adapters import get_adapter
+        cfg, _ = ST.effective_config(ST.discover(cwd, os.environ.get("DBT_PROJECT")), cwd, get_adapter().dialect)
+        i, e = T.tool("Bash", {"command": f"sqlfluff fix models/{model}.sql --config .factory/sqlfluff.cfg"}); yield e
+        r = subprocess.run([ST._sqlfluff_bin(), "fix", f"models/{model}.sql", "--config", cfg, "--disable-progress-bar"], cwd=cwd, capture_output=True, text=True)
+        yield T.res(i, (r.stdout or r.stderr)[-600:])
+        sql = fixed = open(p).read()
+        if " total_amount" in fixed and " as total_amount" not in fixed: fixed = fixed.replace(") total_amount", ") as total_amount")
     i, e = T.tool("Edit", {"file_path": f"models/{model}.sql", "old_string": "...", "new_string": fixed[-400:]}); yield e
     open(p, "w").write(fixed); yield T.res(i, "Edited" if fixed != sql else "No change needed")
     i, e = T.tool(M("dbt_build"), {"select": f"{model}+"}); yield e; yield T.res(i, call(D.build, f"{model}+", cwd=cwd))
