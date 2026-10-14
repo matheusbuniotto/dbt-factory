@@ -2,7 +2,6 @@ import asyncio
 import json
 import os
 import re
-import shlex
 import shutil
 import signal
 import subprocess
@@ -77,8 +76,10 @@ for f in os.listdir(STATE):
     TASKS[t["id"]] = t
 
 
-def sh(cmd, cwd, **kw):
-    argv = shlex.split(cmd) if isinstance(cmd, str) else cmd  # never shell=True
+def sh(argv: list[str], cwd, **kw):
+    """Run a fixed program with an argv list (never a shell). Free text goes via stdin (`input=`), not argv."""
+    if not isinstance(argv, list):
+        raise TypeError("sh() takes an argv list")
     return subprocess.run(argv, cwd=cwd, capture_output=True, text=True, check=False, **kw)
 
 
@@ -308,7 +309,7 @@ def health():
         "auth": claude_auth(),
         "adapter": get_adapter().name,
         "project": PROJECT,
-        "gh_authed": sh("gh auth status", ROOT).returncode == 0,
+        "gh_authed": sh(["gh", "auth", "status"], ROOT).returncode == 0,
     }
 
 
@@ -341,7 +342,7 @@ def create_task(body: TaskIn):
     proj = m.group(1)
     open(f"{wt}/.factory/profiles.yml", "w").write(get_adapter().profiles_yml(proj, wt, PROJECT))
     write_mcp_config(wt)
-    base = sh("git rev-parse HEAD", PROJECT).stdout.strip()
+    base = sh(["git", "rev-parse", "HEAD"], PROJECT).stdout.strip()
     t = {
         "id": tid,
         "base": base,
@@ -410,7 +411,7 @@ def diff(tid: str):
             "diff": sh(["git", "diff", t.get("base") or "HEAD", t["branch"]], PROJECT).stdout,
             "stat": "(worktree cleaned; diff of branch vs main)",
         }
-    sh("git add -A -N", wt)
+    sh(["git", "add", "-A", "-N"], wt)
     base = t.get("base") or "HEAD"
     return {"diff": sh(["git", "diff", base], wt).stdout, "stat": sh(["git", "diff", base, "--stat"], wt).stdout}
 
@@ -465,7 +466,7 @@ def pr(tid: str):
     wt = t["worktree"]
     if t["status"] == "running" or t.get("cleaned"):
         raise HTTPException(409, "task running or cleaned")
-    sh("git add -A", wt)
+    sh(["git", "add", "-A"], wt)
     c = sh(
         [
             "git",
@@ -474,10 +475,12 @@ def pr(tid: str):
             "-c",
             "user.email=factory@localhost",
             "commit",
-            "-m",
-            f"dbt-factory: {t['prompt'][:72]}",
+            "-F",
+            "-",
         ],
         wt,
+        # user text goes through stdin, never argv; the PR title/body are filled from this message
+        input=f"dbt-factory: {t['prompt'][:72]}\n\n{t.get('plan') or t['prompt']}\n",
     )
     out = {
         "committed": c.returncode == 0,
@@ -485,7 +488,7 @@ def pr(tid: str):
         "branch": t["branch"],
         "pr_url": None,
     }
-    if sh("gh auth status", wt).returncode == 0:
+    if sh(["gh", "auth", "status"], wt).returncode == 0:
         p = sh(
             [
                 "gh",
@@ -493,10 +496,7 @@ def pr(tid: str):
                 "create",
                 "--head",
                 t["branch"],
-                "--title",
-                f"dbt-factory: {t['prompt'][:60]}",
-                "--body",
-                t.get("plan") or t["prompt"],
+                "--fill-first",
             ],
             wt,
         )
@@ -563,7 +563,7 @@ def cleanup(tid: str, delete_branch: bool = False):
     r = sh(["git", "worktree", "remove", "--force", wt], PROJECT)
     if os.path.isdir(wt):
         shutil.rmtree(wt)
-    sh("git worktree prune", PROJECT)
+    sh(["git", "worktree", "prune"], PROJECT)
     out = {"worktree_removed": not os.path.exists(wt), "git": r.stderr.strip()}
     if delete_branch:
         out["branch_deleted"] = sh(["git", "branch", "-D", t["branch"]], PROJECT).returncode == 0
@@ -678,6 +678,23 @@ class VerdictIn(BaseModel):
     post_to_github: bool = False
 
 
+def _review_body(t, body) -> str:
+    """Markdown review body: verdict text, inline comments, review summary and risk."""
+    comments = t.get("comments") or []
+    review_body = body.body or f"dbt-factory review: {body.verdict}"
+    if comments:
+        review_body += "\n\n### Comments\n" + "\n".join(
+            f"- `{c.get('path') or 'general'}`: {c['body']}" + (" (resolved)" if c.get("resolved") else "")
+            for c in comments
+        )
+    rev = t.get("review") or {}
+    if rev.get("summary"):
+        review_body += f"\n\n### Summary\n{rev['summary']}"
+    if rev.get("risk"):
+        review_body += f"\n\nRisk: **{rev['risk']}**"
+    return review_body
+
+
 @app.post("/api/tasks/{tid}/verdict")
 def post_verdict(tid: str, body: VerdictIn):
     t = get(tid)
@@ -692,30 +709,20 @@ def post_verdict(tid: str, body: VerdictIn):
     }
     if body.post_to_github:
         pr = (t.get("pr") or {}).get("pr_url") or (t.get("pr") or {}).get("url")
-        if not pr and sh("gh auth status", t["worktree"]).returncode == 0:
+        if not pr and sh(["gh", "auth", "status"], t["worktree"]).returncode == 0:
             # try to find PR for branch
             p = sh(["gh", "pr", "view", t["branch"], "--json", "url", "-q", ".url"], t["worktree"])
             pr = p.stdout.strip() or None
         if not pr:
             out["gh"] = "no PR URL; commit & open PR first (or pass post_to_github after creating one)"
-        elif sh("gh auth status", t["worktree"]).returncode != 0:
+        elif sh(["gh", "auth", "status"], t["worktree"]).returncode != 0:
             out["gh"] = "gh not authenticated"
         else:
             event = {"approve": "APPROVE", "request_changes": "REQUEST_CHANGES", "comment": "COMMENT"}[body.verdict]
-            comments = t.get("comments") or []
-            review_body = body.body or f"dbt-factory review: {body.verdict}"
-            if comments:
-                review_body += "\n\n### Comments\n" + "\n".join(
-                    f"- `{c.get('path') or 'general'}`: {c['body']}" + (" (resolved)" if c.get("resolved") else "")
-                    for c in comments
-                )
-            # findings from review
-            rev = t.get("review") or {}
-            if rev.get("summary"):
-                review_body += f"\n\n### Summary\n{rev['summary']}"
-            if rev.get("risk"):
-                review_body += f"\n\nRisk: **{rev['risk']}**"
-            p = sh(["gh", "pr", "review", pr, "--event", event, "--body", review_body], t["worktree"])
+            review_body = _review_body(t, body)
+            if not re.fullmatch(r"https://[\w.-]+/[\w.-]+/[\w.-]+/pull/\d+", pr):
+                raise HTTPException(400, "unexpected PR URL")
+            p = sh(["gh", "pr", "review", pr, "--event", event, "--body-file", "-"], t["worktree"], input=review_body)
             out["gh"] = "posted" if p.returncode == 0 else (p.stderr or p.stdout)[-500:]
             out["pr_url"] = pr
     t["verdict"] = out
@@ -756,9 +763,10 @@ def eval_runs():
 
 @app.get("/api/evals/runs/{run_id}")
 def eval_run(run_id: str):
-    if not re.fullmatch(r"[\w.-]+", run_id):
+    results = os.path.realpath(f"{EVALS_DIR}/results")
+    p = os.path.realpath(os.path.join(results, f"{run_id}.json"))
+    if not re.fullmatch(r"[\w.-]+", run_id) or os.path.dirname(p) != results:
         raise HTTPException(400)
-    p = f"{EVALS_DIR}/results/{run_id}.json"
     if not os.path.exists(p):
         raise HTTPException(404)
     return json.load(open(p))
@@ -777,11 +785,13 @@ def eval_start(body: EvalIn):
     import datetime as _dt
 
     rid = _dt.datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:4]
-    cmd = [f"{VENV_BIN}/python", "-m", "evals", "run", "--engine", body.engine, "--run-id", rid]
+    known = {c["id"]: c["id"] for c in eval_cases()}
+    if any(c not in known for c in body.cases or []):
+        raise HTTPException(400, "unknown eval case")
+    engine = {e: e for e in ENGINES}[body.engine]
+    cmd = [f"{VENV_BIN}/python", "-m", "evals", "run", "--engine", engine, "--run-id", rid]
     for c in body.cases or []:
-        cmd += ["--case", c]
-    if body.label:
-        cmd += ["--label", body.label]
+        cmd += ["--case", known[c]]  # value taken from the allow-list, not from the request
     log = open(f"{EVALS_DIR}/results/{rid}.log", "w")
     EVAL_PROCS[rid] = subprocess.Popen(
         cmd,
@@ -789,6 +799,7 @@ def eval_start(body: EvalIn):
         stdout=log,
         stderr=subprocess.STDOUT,
         start_new_session=True,
-        env={**os.environ, "PATH": f"{VENV_BIN}:{os.environ['PATH']}"},
+        # free-text label travels via the environment, never argv
+        env={**os.environ, "PATH": f"{VENV_BIN}:{os.environ['PATH']}", "FACTORY_EVAL_LABEL": (body.label or "")[:200]},
     )
     return {"run_id": rid}

@@ -118,13 +118,13 @@ export default function EvalsPage() {
   }, [])
   useEffect(() => {
     if (!sel) return
-    const f = () => j(`/api/evals/runs/${sel}`).then(setRun)
+    const f = () => j(`/api/evals/runs/${encodeURIComponent(sel)}`).then(setRun)
     f()
     const t = setInterval(f, 3000)
     return () => clearInterval(t)
   }, [sel])
   useEffect(() => {
-    if (cmpId) j(`/api/evals/runs/${cmpId}`).then(setCmp)
+    if (cmpId) j(`/api/evals/runs/${encodeURIComponent(cmpId)}`).then(setCmp)
     else setCmp(null)
   }, [cmpId])
   const start = async () => {

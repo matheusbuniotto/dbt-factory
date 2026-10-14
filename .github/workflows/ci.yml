@@ -146,9 +146,10 @@ jobs:
       - name: Publish report
         if: always()
         run: |
-          [ -f complexity-report.md ] && cat complexity-report.md >> "$GITHUB_STEP_SUMMARY"
-          [ -f jscpd-report/jscpd-report.md ] && { echo; echo "## Duplication (jscpd)"; cat jscpd-report/jscpd-report.md; } >> "$GITHUB_STEP_SUMMARY"
-          true
+          if [ -f complexity-report.md ]; then cat complexity-report.md >> "$GITHUB_STEP_SUMMARY"; fi
+          if [ -f jscpd-report/jscpd-report.md ]; then
+            { echo; echo "## Duplication (jscpd)"; cat jscpd-report/jscpd-report.md; } >> "$GITHUB_STEP_SUMMARY"
+          fi
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
@@ -262,7 +263,8 @@ jobs:
           python scripts/ci/eval_gate.py evals/results/ci-mock.json --out eval-scorecard.md
       - name: Scorecard → job summary
         if: always()
-        run: '[ -f eval-scorecard.md ] && cat eval-scorecard.md >> "$GITHUB_STEP_SUMMARY" || true'
+        run: |
+          if [ -f eval-scorecard.md ]; then cat eval-scorecard.md >> "$GITHUB_STEP_SUMMARY"; fi
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:

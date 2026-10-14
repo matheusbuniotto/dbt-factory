@@ -1,6 +1,7 @@
 """Analyst-facing review: risk flags, lineage impact, findings from gates + heuristics, data compare.
 Comments are stored by the API; this module only builds the review report."""
 
+import logging
 import os
 import re
 import shlex
@@ -10,6 +11,8 @@ from . import analysis as A
 from . import dbt_tools as D
 from . import gates as G
 from .warehouse import QueryError
+
+log = logging.getLogger(__name__)
 
 LAYER_RISK = {
     "stg_": "low",
@@ -252,19 +255,30 @@ def build_review(cwd, model=None, base="HEAD", run_data=True):
         if run_data:
             try:
                 gate = G.run_gates(m, cwd=cwd)
-            except Exception as ex:
+            except Exception:
+                # full traceback stays in the server log; the client gets a non-sensitive summary
+                log.exception("gates failed for %s", m)
                 gate = {
                     "passed": False,
-                    "checks": [{"id": "gate_error", "status": "fail", "detail": str(ex), "group": "code"}],
+                    "checks": [
+                        {
+                            "id": "gate_error",
+                            "status": "fail",
+                            "detail": "gate run failed (see server log)",
+                            "group": "code",
+                        }
+                    ],
                     "failed": ["gate_error"],
                     "summary": {},
                 }
             try:
                 compare = A.compare(m, cwd=cwd)
             except QueryError as ex:
-                compare = {"status": "error", "message": str(ex)}
-            except Exception as ex:
-                compare = {"status": "error", "message": str(ex)}
+                log.warning("compare failed for %s: %s", m, ex)
+                compare = {"status": "error", "message": "query against the warehouse failed (see server log)"}
+            except Exception:
+                log.exception("compare failed for %s", m)
+                compare = {"status": "error", "message": "comparison failed (see server log)"}
         risk = _risk_for_model(
             m, cwd, gate, compare if isinstance(compare, dict) and compare.get("status") != "error" else None
         )

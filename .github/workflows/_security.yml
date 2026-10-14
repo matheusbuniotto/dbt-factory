@@ -94,7 +94,23 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # The action hard-fails when the repo's Dependency graph setting is off. Probe first so the gate is
+      # enforced as soon as the setting is on, and is reported (not silently passed) until then.
+      - name: Probe dependency graph
+        id: probe
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RANGE: ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}
+        run: |
+          if gh api "repos/$GITHUB_REPOSITORY/dependency-graph/compare/$RANGE" --silent 2>/dev/null; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=dependency-review skipped::Dependency graph is disabled (Settings → Code security). Enable it to enforce this gate."
+            echo "> ⚠️ dependency-review skipped: enable *Dependency graph* in repo settings to enforce it." >> "$GITHUB_STEP_SUMMARY"
+          fi
       - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        if: steps.probe.outputs.enabled == 'true'
         with:
           fail-on-severity: high
           comment-summary-in-pr: never

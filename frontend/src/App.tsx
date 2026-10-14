@@ -679,18 +679,18 @@ export default function App() {
     return () => clearInterval(t)
   }, [])
   const refreshPreview = (id: string) =>
-    fetch(`/api/tasks/${id}/preview`)
+    fetch(`/api/tasks/${encodeURIComponent(id)}/preview`)
       .then((r) => (r.ok ? r.json() : r.status === 409 ? undefined : null))
       .then((p) => {
         if (p !== undefined) setPrev(p)
       })
   const refreshArtifacts = (id: string, withPreview = false) => {
-    j(`/api/tasks/${id}`).then((t) => {
+    j(`/api/tasks/${encodeURIComponent(id)}`).then((t) => {
       setTask(t)
       if (withPreview || t.status !== 'running') refreshPreview(id)
     })
-    j(`/api/tasks/${id}/diff`).then((d) => setDiff(d.diff || ''))
-    j(`/api/tasks/${id}/capabilities`).then(setCaps)
+    j(`/api/tasks/${encodeURIComponent(id)}/diff`).then((d) => setDiff(d.diff || ''))
+    j(`/api/tasks/${encodeURIComponent(id)}/capabilities`).then(setCaps)
   }
   useEffect(() => {
     if (!sel) {
@@ -707,7 +707,7 @@ export default function App() {
   useEffect(() => {
     if (!sel || !gen) return
     refreshArtifacts(sel)
-    const es = new EventSource(`/api/tasks/${sel}/events?since=${evCount.current}`)
+    const es = new EventSource(`/api/tasks/${encodeURIComponent(sel)}/events?since=${evCount.current}`)
     es.onmessage = (m) => {
       const e = JSON.parse(m.data)
       if (e.i < evCount.current) return
@@ -728,7 +728,7 @@ export default function App() {
   }
 
   const post = (p: string, body?: any) =>
-    fetch(`/api/tasks/${sel}/${p}`, {
+    fetch(`/api/tasks/${encodeURIComponent(sel ?? '')}/${p}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: body && JSON.stringify(body),
@@ -1170,7 +1170,7 @@ export default function App() {
                         : async () => {
                             setGateBusy(true)
                             try {
-                              const g = await j(`/api/tasks/${task.id}/gate?refresh=true`)
+                              const g = await j(`/api/tasks/${encodeURIComponent(task.id)}/gate?refresh=true`)
                               setTask((t) => t && ({ ...t, gate: g } as any))
                             } finally {
                               setGateBusy(false)

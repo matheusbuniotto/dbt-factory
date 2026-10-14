@@ -284,7 +284,7 @@ export default function ReviewView({ task, onSentToAgent }: { task: any; onSentT
   const load = (refresh = false) => {
     setLoading(true)
     setErr('')
-    j(`/api/tasks/${task.id}/review${refresh ? '?refresh=true' : ''}`)
+    j(`/api/tasks/${encodeURIComponent(task.id)}/review${refresh ? '?refresh=true' : ''}`)
       .then((r) => {
         setRev(r)
         if (r.verdict && r.verdict.verdict !== 'comment') setVerdict(r.verdict.verdict)
@@ -298,11 +298,11 @@ export default function ReviewView({ task, onSentToAgent }: { task: any; onSentT
   }, [task.id])
   const comments = rev?.comments || []
   const addComment = async (c: any) => {
-    await post(`/api/tasks/${task.id}/comments`, c)
+    await post(`/api/tasks/${encodeURIComponent(task.id)}/comments`, c)
     load()
   }
   const resolve = async (id: string, r: boolean) => {
-    await post(`/api/tasks/${task.id}/comments/${id}/resolve?resolved=${r}`)
+    await post(`/api/tasks/${encodeURIComponent(task.id)}/comments/${id}/resolve?resolved=${r}`)
     load()
   }
   const flash = (s: string) => {
@@ -311,7 +311,7 @@ export default function ReviewView({ task, onSentToAgent }: { task: any; onSentT
   }
   const sendToAgent = async () => {
     try {
-      await post(`/api/tasks/${task.id}/comments/send-to-agent`)
+      await post(`/api/tasks/${encodeURIComponent(task.id)}/comments/send-to-agent`)
       flash('Sent open comments to the droid as a follow-up')
       onSentToAgent()
     } catch (e: any) {
@@ -320,7 +320,7 @@ export default function ReviewView({ task, onSentToAgent }: { task: any; onSentT
   }
   const submit = async () => {
     try {
-      const r = await post(`/api/tasks/${task.id}/verdict`, { verdict, body: msg, post_to_github: postGh })
+      const r = await post(`/api/tasks/${encodeURIComponent(task.id)}/verdict`, { verdict, body: msg, post_to_github: postGh })
       flash(postGh ? `Verdict saved · GitHub: ${r.gh}` : 'Verdict saved')
       load()
     } catch (e: any) {

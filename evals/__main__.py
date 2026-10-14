@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import os
 
 from .runner import load_cases, run
 
@@ -14,7 +15,7 @@ def main():
     r.add_argument("--case", action="append")
     r.add_argument("--parallel", type=int, default=2)
     r.add_argument("--run-id")
-    r.add_argument("--label")
+    r.add_argument("--label", default=os.environ.get("FACTORY_EVAL_LABEL") or None)
     sub.add_parser("list")
     a = ap.parse_args()
     if a.cmd == "list":
