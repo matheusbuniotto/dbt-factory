@@ -1,6 +1,6 @@
 """Shared engine config (cli + sdk). Env:
 FACTORY_ENGINE=auto|mock|cli|sdk   FACTORY_MODEL=<model>   FACTORY_MAX_TURNS=40
-ANTHROPIC_BASE_URL (e.g. LiteLLM proxy http://localhost:4000), ANTHROPIC_AUTH_TOKEN / ANTHROPIC_API_KEY."""
+ANTHROPIC_BASE_URL (external gateway, e.g. LiteLLM), ANTHROPIC_AUTH_TOKEN / ANTHROPIC_API_KEY."""
 import os
 import sys
 BACKEND = os.path.dirname(os.path.abspath(__file__))
