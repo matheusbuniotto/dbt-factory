@@ -5,7 +5,7 @@ uvicorn
 httpx
 pyyaml
 sqlglot
-sqlfluff>=3
+sqlfluff>=4.4.0
 sqlfluff-templater-dbt>=3
 mcp>=1.2,<2
 claude-agent-sdk
