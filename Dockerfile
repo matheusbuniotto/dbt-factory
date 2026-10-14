@@ -33,6 +33,8 @@ COPY --chown=factory:factory examples/ examples/
 COPY --chown=factory:factory docs/ docs/
 COPY --chown=factory:factory scripts/ scripts/
 COPY --from=ui --chown=factory:factory /ui/dist frontend/dist
+# runtime dirs the app writes to (worktrees, state, projects) must be owned by the non-root user
+RUN install -d -o factory -g factory /app/worktrees /app/state /app/projects
 USER factory
 EXPOSE 8787
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \

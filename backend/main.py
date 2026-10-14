@@ -763,11 +763,12 @@ def eval_runs():
 
 @app.get("/api/evals/runs/{run_id}")
 def eval_run(run_id: str):
-    results = os.path.realpath(f"{EVALS_DIR}/results")
-    p = os.path.realpath(os.path.join(results, f"{run_id}.json"))
-    if not re.fullmatch(r"[\w.-]+", run_id) or os.path.dirname(p) != results:
+    if not re.fullmatch(r"[\w.-]+", run_id):
         raise HTTPException(400)
-    if not os.path.exists(p):
+    # resolve against the files that actually exist, so no request-derived path reaches open()
+    runs = {e.name[:-5]: e.path for e in os.scandir(f"{EVALS_DIR}/results") if e.name.endswith(".json")}
+    p = runs.get(run_id)
+    if not p:
         raise HTTPException(404)
     return json.load(open(p))
 

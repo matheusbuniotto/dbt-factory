@@ -1,16 +1,20 @@
 import asyncio
 import json
+import os
 import sys
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+VENV_BIN = os.path.join(ROOT, ".venv", "bin")
+
 
 async def main(wt):
     p = StdioServerParameters(
-        command="/workspace/dbt-factory/.venv/bin/python",
-        args=["/workspace/dbt-factory/backend/mcp_server.py"],
-        env={"DBT_PROJECT_DIR": wt, "PATH": "/workspace/dbt-factory/.venv/bin:/usr/bin:/bin"},
+        command=os.path.join(VENV_BIN, "python"),
+        args=[os.path.join(ROOT, "backend", "mcp_server.py")],
+        env={"DBT_PROJECT_DIR": wt, "PATH": f"{VENV_BIN}:/usr/bin:/bin"},
     )
     async with stdio_client(p) as (r, w), ClientSession(r, w) as s:
         await s.initialize()
