@@ -643,6 +643,7 @@ function Composer({ value, set, onSend, disabled, placeholder, chips, autoFocus 
 import { GateChip, GateScorecard } from './Gates'
 import ReviewView from './Review'
 import EvalsPage from './Evals'
+import { SettingsEntry, StyleCaps } from './Settings'
 
 export default function App() {
   const qs = new URLSearchParams(location.search)
@@ -857,6 +858,7 @@ export default function App() {
             <Icon n="list" className="text-ink-3" />
             Evals
           </button>
+          <SettingsEntry />
           <button
             onClick={() => {
               setPage('tasks')
@@ -1090,9 +1092,7 @@ export default function App() {
                           </span>
                         ))}
                       </div>
-                      <div className="mt-3 text-[11.5px] text-ink-5">
-                        Data access: dbt target only (read-only, LIMIT enforced). Local data files are blocked.
-                      </div>
+                      <StyleCaps style={caps?.sql_style} />
                     </div>
                   )}
                   <Composer

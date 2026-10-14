@@ -14,6 +14,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from style_api import router as style_router
+from style_api import style_caps
 
 from adapters import get_adapter
 from engine_config import (
@@ -34,10 +36,11 @@ from factory_tools import gates as GATES
 from factory_tools import review as REVIEW
 from factory_tools import warehouse as WH
 from factory_tools.gates import parse_waivers
-from prompts import SYSTEM_PROMPT
+from prompts import system_prompt
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PROJECT = os.environ.get("DBT_PROJECT", f"{ROOT}/projects/jaffle_shop")
+os.environ.setdefault("DBT_PROJECT", PROJECT)
 WT_ROOT = f"{ROOT}/worktrees"
 STATE = f"{ROOT}/state"
 VENV_BIN = f"{ROOT}/.venv/bin"
@@ -61,6 +64,12 @@ if os.path.exists(excl) and ".factory/" not in open(excl).read():
     open(excl, "a").write("\n.factory/\nwarehouse.duckdb*\ntarget/\nlogs/\ndbt_packages/\n*.duckdb\n")
 
 TASKS: dict = {}
+TASK_LOCKS: dict = {}
+
+
+def tlock(tid):
+    """One warehouse job per task at a time (duckdb is single-writer)."""
+    return TASK_LOCKS.setdefault(tid, threading.Lock())
 
 
 def save(t):
@@ -192,7 +201,7 @@ def run_task(t, prompt, followup=False):
                 "stream-json",
                 "--verbose",
                 "--append-system-prompt",
-                SYSTEM_PROMPT,
+                system_prompt(wt, PROJECT),
                 "--allowedTools",
                 ",".join(ALLOWED_TOOLS),
                 "--disallowedTools",
@@ -242,7 +251,8 @@ def run_task(t, prompt, followup=False):
         t["phase"] = "gating"
         save(t)
         try:
-            _run_post_turn_gate(t)
+            with tlock(t["id"]):
+                _run_post_turn_gate(t)
         except Exception as ex:
             emit(t, "log", text=f"gate error: {ex}")
         finally:
@@ -290,6 +300,7 @@ def _run_post_turn_gate(t):
 PROCS: dict = {}
 
 app = FastAPI(title="dbt-factory")
+app.include_router(style_router)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 
@@ -461,6 +472,7 @@ def capabilities(tid: str):
     caps = dict(t.get("capabilities") or {})
     if not t.get("cleaned"):
         caps["skills"] = project_skills(t["worktree"])
+    caps["sql_style"] = style_caps(None if t.get("cleaned") else t["worktree"], PROJECT)
     return caps
 
 
@@ -582,15 +594,16 @@ def get_gate(tid: str, refresh: bool = False):
     if t.get("cleaned"):
         raise HTTPException(410, "worktree cleaned up")
     if refresh or not t.get("gate"):
-        model = t.get("preview_model")
-        if not model:
-            ms, _ = REVIEW.changed_models(t["worktree"], t.get("base") or "HEAD")
-            model = ms[0] if ms else None
-        if not model:
-            raise HTTPException(404, "no model")
-        text = "\n".join(e.get("text") or "" for e in t["events"] if e.get("kind") == "text")
-        t["gate"] = GATES.run_gates(model, waivers=parse_waivers(text), cwd=t["worktree"])
-        save(t)
+        with tlock(tid):
+            model = t.get("preview_model")
+            if not model:
+                ms, _ = REVIEW.changed_models(t["worktree"], t.get("base") or "HEAD")
+                model = ms[0] if ms else None
+            if not model:
+                raise HTTPException(404, "no model")
+            text = "\n".join(e.get("text") or "" for e in t["events"] if e.get("kind") == "text")
+            t["gate"] = GATES.run_gates(model, waivers=parse_waivers(text), cwd=t["worktree"])
+            save(t)
     return t["gate"]
 
 
@@ -600,10 +613,14 @@ def get_review(tid: str, refresh: bool = False):
     if t.get("cleaned"):
         raise HTTPException(410, "worktree cleaned up")
     if refresh or not t.get("review"):
-        t["review"] = REVIEW.build_review(
-            t["worktree"], model=t.get("preview_model"), base=t.get("base") or "HEAD", run_data=t["status"] != "running"
-        )
-        save(t)
+        with tlock(tid):
+            t["review"] = REVIEW.build_review(
+                t["worktree"],
+                model=t.get("preview_model"),
+                base=t.get("base") or "HEAD",
+                run_data=t["status"] != "running",
+            )
+            save(t)
     rev = dict(t["review"])
     rev["comments"] = t.get("comments") or []
     rev["verdict"] = t.get("verdict")
