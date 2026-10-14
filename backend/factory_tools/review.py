@@ -122,6 +122,19 @@ def gate_findings(gate, path_for_model, cwd=None):
     out = []
     for c in gate.get("checks", []):
         if c["status"] not in ("fail", "warn"): continue
+        if c["id"] == "sql_style" and c.get("violations"):
+            try: src = open(os.path.join(cwd, c.get("path") or path_for_model)).read().splitlines() if cwd else []
+            except OSError: src = []
+            by_line = {}
+            for v in c["violations"][:80]:
+                by_line.setdefault(v.get("line"), {}).setdefault(v.get("code"), [v.get("description"), 0])[1] += 1
+            for ln, codes in by_line.items():
+                msg = "; ".join(f"{code} {d}" + (f" (×{n})" if n > 1 else "") for code, (d, n) in codes.items())
+                out.append({"path": c.get("path") or path_for_model, "line": ln,
+                            "line_hint": (src[ln - 1].strip()[:80] if ln and 0 < ln <= len(src) else None),
+                            "kind": "sql_style", "severity": "low", "codes": list(codes), "source": c.get("source"),
+                            "message": f"[code/sql_style] L{ln}: {msg}", "status": c["status"]})
+            continue
         out.append({"path": path_for_model, "line_hint": _anchor(cwd, path_for_model, c["id"]), "kind": c["id"], "severity": "high" if c["status"] == "fail" else "med",
                     "message": f"[{c['group']}/{c['id']}] {c['detail'][:200]}", "status": c["status"]})
     return out
@@ -149,7 +162,10 @@ def build_review(cwd, model=None, base="HEAD", run_data=True):
     # overall risk = max of models
     order = {"high": 3, "med": 2, "low": 1}
     overall = max((m["risk"]["level"] for m in per_model), key=lambda x: order[x], default="low")
-    return {"primary": primary, "models": per_model, "files": files, "findings": findings,
+    from . import sql_style as ST
+    st = ST.discover(cwd, os.environ.get("DBT_PROJECT"))
+    style = {"summary": st["summary"], "guide": (st["guide"] or {}).get("text"), "guide_source": (st["guide"] or {}).get("source")}
+    return {"style": style, "primary": primary, "models": per_model, "files": files, "findings": findings,
             "risk": overall, "summary": _summary(per_model, findings), "look_first": _look_first(per_model, findings)}
 
 def _summary(models, findings):

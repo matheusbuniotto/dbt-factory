@@ -4,7 +4,7 @@ Usage: python sdk_runner.py <prompt> [resume_session_id]   (cwd = task worktree)
 import asyncio, json, os, sys, dataclasses
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from engine_config import ALLOWED_TOOLS, DISALLOWED_TOOLS, MAX_TURNS, model, claude_auth, mcp_servers
-from prompts import SYSTEM_PROMPT
+from prompts import SYSTEM_PROMPT, system_prompt
 
 def _block(b):
     from claude_agent_sdk import TextBlock, ToolUseBlock, ToolResultBlock, ThinkingBlock
@@ -42,7 +42,7 @@ async def main(prompt, resume=None):
     from claude_agent_sdk import query, ClaudeAgentOptions, ClaudeSDKError
     stderr_tail = []
     opts = ClaudeAgentOptions(
-        system_prompt={"type": "preset", "preset": "claude_code", "append": SYSTEM_PROMPT},
+        system_prompt={"type": "preset", "preset": "claude_code", "append": system_prompt(os.getcwd())},
         allowed_tools=ALLOWED_TOOLS, disallowed_tools=DISALLOWED_TOOLS, mcp_servers=mcp_servers(os.getcwd()), permission_mode="acceptEdits", max_turns=MAX_TURNS,
         cwd=os.getcwd(), model=model(), resume=resume, env=dict(os.environ),
         cli_path=os.environ.get("CLAUDE_CLI_PATH") or None, setting_sources=["project"],

@@ -182,12 +182,13 @@ function Composer({ value, set, onSend, disabled, placeholder, chips, autoFocus 
 import { GateChip, GateScorecard } from './Gates'
 import ReviewView from './Review'
 import EvalsPage from './Evals'
+import Settings from './Settings'
 
 export default function App() {
   const qs = new URLSearchParams(location.search)
   const [page, setPage] = useState<'tasks' | 'evals'>(qs.get('page') === 'evals' ? 'evals' : 'tasks')
   const [mode, setMode] = useState<'session' | 'review'>(qs.get('tab') === 'review' ? 'review' : 'session')
-  const [gateBusy, setGateBusy] = useState(false)
+  const [gateBusy, setGateBusy] = useState(false); const [settings, setSettings] = useState(qs.get('settings') === '1')
   const [health, setHealth] = useState<Health>({}); const [tasks, setTasks] = useState<Task[]>([])
   const [sel, setSel] = useState<string | null>(new URLSearchParams(location.search).get('task'))
   const [task, setTask] = useState<Task | null>(null); const [evs, setEvs] = useState<Ev[]>([])
@@ -243,6 +244,7 @@ export default function App() {
         <span className="ml-auto rounded border border-line2 px-1.5 py-px font-mono text-[10px] text-ink-4">MVP</span></div>
       <div className="px-2">
         <button onClick={() => { setPage('evals'); history.replaceState(null, '', '?page=evals') }} className={`flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-hover ${page === 'evals' ? 'bg-hover text-ink-1' : 'text-ink-2'}`}><Icon n="list" className="text-ink-3" />Evals</button>
+        <button onClick={() => setSettings(true)} className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-ink-2 hover:bg-hover"><Icon n="code" className="text-ink-3" />Settings · SQL style</button>
         <button onClick={() => { setPage('tasks'); setSel(null); history.replaceState(null, '', '/') }} className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-ink-2 hover:bg-hover"><Icon n="plus" className="text-ink-3" />New session</button>
         <label className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-ink-3 focus-within:bg-hover"><Icon n="search" /><input value={q} onChange={e => setQ(e.target.value)} placeholder="Search" className="w-full bg-transparent outline-none placeholder:text-ink-3" /></label>
       </div>
@@ -300,6 +302,8 @@ export default function App() {
             {skills.length ? skills.map(sk => <div key={sk.name} className="mb-1.5"><span className="font-mono text-[12px] text-ink-1">{sk.name}</span><div className="text-[12px] text-ink-4">{sk.description}</div></div>) : <div className="text-[12px] text-ink-5">none found</div>}
             <div className="label mb-1.5 mt-3">MCP · {caps?.mcp_server || 'dbt-factory-tools'} <span className="normal-case tracking-normal text-ink-5">· from {caps?.source}</span></div>
             <div className="flex flex-wrap gap-1">{mcpTools.map(t => <span key={t} className="rounded border border-line2 px-1.5 py-px font-mono text-[10.5px] text-ink-3">{t.split('__').pop()}</span>)}</div>
+            <div className="label mb-1 mt-3">SQL style</div>
+            <div className="text-[12px] text-ink-3">{caps?.sql_style?.summary || 'default'} <span className="text-ink-5">· dialect {caps?.sql_style?.dialect}</span> <button onClick={() => setSettings(true)} className="ml-1 text-[#93c5fd] hover:underline">edit</button></div>
             <div className="mt-3 text-[11.5px] text-ink-5">Data access: dbt target only (read-only, LIMIT enforced). Local data files are blocked.</div>
           </div>}
           <Composer value={msg} set={setMsg} onSend={followUp} disabled={running || task.cleaned}
@@ -326,6 +330,7 @@ export default function App() {
           <span>engine: {ENGINE_LABEL[taskEngine]}</span>{task.session_id && <span>session {task.session_id.slice(0, 8)}</span>}<span>{task.turns?.length || 1} turns</span><span>{evs.length} events</span>{task.preview_model && <span>model: {task.preview_model}</span>}</div>
       </aside>}
     </>}
+    {settings && <Settings onClose={() => { setSettings(false); sel && j(`/api/tasks/${sel}/capabilities`).then(setCaps) }} />}
     {toast && <div className="fixed bottom-5 left-1/2 -translate-x-1/2 animate-fadein rounded-lg border border-line2 bg-raised px-4 py-2 text-[12.5px] text-ink-1 shadow-2xl">{toast}</div>}
   </div>
 }

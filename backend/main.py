@@ -4,7 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from adapters import get_adapter
-from prompts import SYSTEM_PROMPT
+from prompts import SYSTEM_PROMPT, system_prompt
+from factory_tools import sql_style as STYLE
 from engine_config import DISALLOWED_TOOLS, write_mcp_config, project_skills, mcp_tool_names, MCP_NAME
 from factory_tools import warehouse as WH, dbt_tools as DT, gates as GATES, review as REVIEW, quality as QUALITY
 from factory_tools.gates import parse_waivers
@@ -12,6 +13,7 @@ from engine_config import ALLOWED_TOOLS, MAX_TURNS, ENGINES, model, claude_auth,
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PROJECT = os.environ.get("DBT_PROJECT", f"{ROOT}/projects/jaffle_shop")
+os.environ.setdefault("DBT_PROJECT", PROJECT)
 WT_ROOT = f"{ROOT}/worktrees"; STATE = f"{ROOT}/state"
 VENV_BIN = f"{ROOT}/.venv/bin"
 CLAUDE = shutil.which("claude") or os.path.expanduser("~/.local/bin/claude")
@@ -27,6 +29,8 @@ if ".factory/" not in open(excl).read():
     open(excl, "a").write("\n.factory/\nwarehouse.duckdb*\ntarget/\nlogs/\ndbt_packages/\n*.duckdb\n")
 
 TASKS: dict = {}
+TASK_LOCKS: dict = {}
+def tlock(tid): return TASK_LOCKS.setdefault(tid, threading.Lock())
 def save(t): json.dump({k: v for k, v in t.items() if k != "_lock"}, open(f"{STATE}/{t['id']}.json", "w"))
 for f in os.listdir(STATE):
     t = json.load(open(f"{STATE}/{f}")); t.setdefault("turns", [{"prompt": t["prompt"], "status": t["status"]}]); t.setdefault("cleaned", False); t.setdefault("engine", "mock" if t.get("mock") else "cli")
@@ -94,7 +98,7 @@ def run_task(t, prompt, followup=False):
             env["CLAUDE_CLI_PATH"] = CLAUDE
         else:
             cmd = [CLAUDE, "-p", prompt, "--output-format", "stream-json", "--verbose",
-                   "--append-system-prompt", SYSTEM_PROMPT,
+                   "--append-system-prompt", system_prompt(wt, PROJECT),
                    "--allowedTools", ",".join(ALLOWED_TOOLS), "--disallowedTools", ",".join(DISALLOWED_TOOLS),
                    "--mcp-config", write_mcp_config(wt), "--setting-sources", "project",
                    "--permission-mode", "acceptEdits", "--max-turns", str(MAX_TURNS)] + (["--model", model()] if model() else [])
@@ -116,7 +120,8 @@ def run_task(t, prompt, followup=False):
     if t["status"] == "succeeded":
         # keep the task "running" (phase=gating) until DoD finishes so clients don't race the warehouse lock
         t["status"] = "running"; t["phase"] = "gating"; save(t)
-        try: _run_post_turn_gate(t)
+        try:
+            with tlock(t["id"]): _run_post_turn_gate(t)
         except Exception as ex: emit(t, "log", text=f"gate error: {ex}")
         finally:
             try:
@@ -232,6 +237,9 @@ def preview(tid: str, relation: str | None = None, limit: int = 20):
 def capabilities(tid: str):
     t = get(tid); caps = dict(t.get("capabilities") or {})
     if not t.get("cleaned"): caps["skills"] = project_skills(t["worktree"])
+    st = STYLE.discover(None if t.get("cleaned") else t["worktree"], PROJECT)
+    caps["sql_style"] = {"summary": st["summary"], "rules": (st["rules"] or {}).get("source"), "guide": (st["guide"] or {}).get("source"),
+                         "dialect": getattr(get_adapter(), "dialect", "duckdb")}
     return caps
 
 @app.post("/api/tasks/{tid}/pr")
@@ -296,6 +304,7 @@ def get_gate(tid: str, refresh: bool = False):
     t = get(tid)
     if t.get("cleaned"): raise HTTPException(410, "worktree cleaned up")
     if refresh or not t.get("gate"):
+      with tlock(tid):   # one warehouse job per task at a time (duckdb is single-writer)
         model = t.get("preview_model")
         if not model:
             ms, _ = REVIEW.changed_models(t["worktree"], t.get("base") or "HEAD"); model = ms[0] if ms else None
@@ -309,6 +318,7 @@ def get_review(tid: str, refresh: bool = False):
     t = get(tid)
     if t.get("cleaned"): raise HTTPException(410, "worktree cleaned up")
     if refresh or not t.get("review"):
+      with tlock(tid):
         t["review"] = REVIEW.build_review(t["worktree"], model=t.get("preview_model"), base=t.get("base") or "HEAD",
                                           run_data=t["status"] != "running"); save(t)
     rev = dict(t["review"]); rev["comments"] = t.get("comments") or []; rev["verdict"] = t.get("verdict")
@@ -429,3 +439,22 @@ def eval_start(body: EvalIn):
     EVAL_PROCS[rid] = subprocess.Popen(cmd, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT, start_new_session=True,
                                        env={**os.environ, "PATH": f"{VENV_BIN}:{os.environ['PATH']}"})
     return {"run_id": rid}
+
+
+# ---------------- SQL style (project-level; persisted to <project>/.factory/) ----------------
+class StyleIn(BaseModel):
+    sqlfluff: str | None = None   # sqlfluff ini text; "" removes the saved one
+    guide: str | None = None      # markdown; "" removes
+
+@app.get("/api/style")
+def get_style():
+    st = STYLE.discover(None, PROJECT)
+    return {"summary": st["summary"], "rules": st["rules"], "guide": st["guide"], "dialect": getattr(get_adapter(), "dialect", "duckdb"),
+            "order": ["$FACTORY_SQL_STYLE", "repo .sqlfluff", "repo .factory/.sqlfluff", "repo .factory/sql_style.md", "repo .claude/ style guide"],
+            "env": os.environ.get("FACTORY_SQL_STYLE")}
+
+@app.put("/api/style")
+def put_style(body: StyleIn):
+    try: saved = STYLE.save(PROJECT, body.sqlfluff, body.guide)
+    except ValueError as ex: raise HTTPException(400, str(ex))
+    return {"saved": saved, **get_style()}

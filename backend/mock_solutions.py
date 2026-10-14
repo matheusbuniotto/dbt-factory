@@ -235,6 +235,39 @@ models:
 "fct_order_status_summary built.",
 waivers={"reconciles": "new model; totals equal orders"})
 
+# 7) STYLE TRAP: correct data, sloppy SQL style (uppercase keywords, bare JOIN, implicit alias)
+solution(r"payment method", "fct_payment_methods",
+"""WITH payments AS (
+    SELECT * FROM {{ ref('stg_payments') }}
+)
+
+SELECT
+    p.payment_method,
+    COUNT(DISTINCT p.order_id) AS order_count,
+    SUM(p.amount) total_amount
+FROM payments p
+GROUP BY 1
+""",
+"""version: 2
+models:
+  - name: fct_payment_methods
+    description: Orders and amount per payment method.
+    config:
+      meta:
+        grain: [payment_method]
+    columns:
+      - name: payment_method
+        description: Payment method.
+        data_tests: [unique, not_null]
+      - name: order_count
+        description: Distinct orders paid with the method.
+      - name: total_amount
+        description: Sum of payment amount.
+""",
+"- Aggregate stg_payments by payment_method\n- Test grain",
+"fct_payment_methods built (one row per payment method).",
+waivers={"reconciles": "new model; totals equal stg_payments"})
+
 def pick(prompt):
     for s in SOLUTIONS:
         if s["re"].search(prompt or ""): return s

@@ -42,7 +42,7 @@ function CodeDiff({ path, diff, findings, comments, onComment, onResolve }: any)
   const lines = useMemo(() => parseDiff(diff || ''), [diff])
   const [open, setOpen] = useState<number | null>(null)
   const byLine = (n?: number) => comments.filter((c: any) => c.path === path && c.line === n)
-  const findingAt = (l: Line) => l.kind === 'add' ? findings.filter((f: any) => f.path === path && f.line_hint && l.text.trim().startsWith(f.line_hint.slice(0, 40))) : []
+  const findingAt = (l: Line) => l.kind === 'del' ? [] : findings.filter((f: any) => f.path === path && (f.line ? f.line === l.n : l.kind === 'add' && f.line_hint && l.text.trim().startsWith(f.line_hint.slice(0, 40))))
   if (!lines.length) return <div className="p-4 text-[12.5px] text-ink-5">No code changes in this file.</div>
   return <div className="font-mono text-[12px] leading-[1.7]">{lines.map((l, i) => {
     if (l.kind === 'hunk') return <div key={i} className="bg-sunken px-3 text-[11px] text-ink-5">{l.text}</div>
@@ -53,7 +53,7 @@ function CodeDiff({ path, diff, findings, comments, onComment, onResolve }: any)
         <button title="Comment on this line" onClick={() => l.n && setOpen(open === i ? null : i)} className={`w-5 shrink-0 text-center text-[#60a5fa] ${l.n ? 'opacity-0 group-hover:opacity-100' : 'invisible'}`}>+</button>
         <span className={`w-3 shrink-0 select-none ${l.kind === 'add' ? 'text-[#86efac]' : l.kind === 'del' ? 'text-[#fca5a5]' : 'text-ink-6'}`}>{l.kind === 'add' ? '+' : l.kind === 'del' ? '−' : ''}</span>
         <span className={`whitespace-pre-wrap break-all pr-3 ${l.kind === 'add' ? 'text-[#dcfce7]' : l.kind === 'del' ? 'text-[#fecaca]' : 'text-ink-3'}`}>{l.text || ' '}</span></div>
-      {fs.map((f: any, k: number) => <div key={k} className="mx-3 my-1.5 ml-[4.5rem] rounded-lg border border-[#facc15]/30 bg-[#facc15]/[.07] px-3 py-2 font-sans text-[12.5px] text-[#fde68a]">⚑ {plain(f.message)}</div>)}
+      {fs.map((f: any, k: number) => <div key={k} className={`mx-3 my-1.5 ml-[4.5rem] rounded-lg border px-3 py-2 font-sans text-[12.5px] ${f.kind === 'sql_style' ? 'border-[#60a5fa]/30 bg-[#60a5fa]/[.07] text-[#bfdbfe]' : 'border-[#facc15]/30 bg-[#facc15]/[.07] text-[#fde68a]'}`}>{f.kind === 'sql_style' ? '✎ Style' : '⚑'} {plain(f.message)}</div>)}
       {cs.map((c: any) => <div key={c.id} className="my-1.5 ml-[4.5rem] mr-3 font-sans"><Thread c={c} onResolve={onResolve} /></div>)}
       {open === i && <div className="my-1.5 ml-[4.5rem] mr-3 font-sans"><CommentBox autoFocus onCancel={() => setOpen(null)} onSave={b => { onComment({ body: b, path, line: l.n, line_hint: l.text.trim().slice(0, 80) }); setOpen(null) }} /></div>}
     </div>
@@ -111,6 +111,8 @@ export default function ReviewView({ task, onSentToAgent }: { task: any; onSentT
         <ol className="space-y-1">{rev.look_first.map((x: any, i: number) => <li key={i} className="flex gap-2 text-[13px]"><span className="text-ink-5">{i + 1}.</span><span className="font-mono text-ink-1">{x.model}</span><span className="text-ink-4">— {plain(x.why)}</span></li>)}</ol></div>}
     </section>
 
+    {rev.style?.guide && <details className="rounded-2xl border border-line px-5 py-3"><summary className="cursor-pointer text-[13px] text-ink-2">Team SQL style guide <span className="text-ink-5">· {rev.style.summary}</span></summary>
+      <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap font-mono text-[12px] leading-5 text-ink-3">{rev.style.guide}</pre></details>}
     {(rev.models || []).map((m: any) => <section key={m.model} className="overflow-hidden rounded-2xl border border-line">
       <header className="flex flex-wrap items-center gap-3 border-b border-line bg-sunken px-5 py-3">
         <span className="font-mono text-[14px] text-ink-1">{m.model}</span><RiskBadge level={m.risk.level} />
@@ -130,8 +132,8 @@ export default function ReviewView({ task, onSentToAgent }: { task: any; onSentT
       </div>
     </section>)}
 
-    {(rev.findings || []).filter((f: any) => !f.line_hint).length > 0 && <section className="rounded-2xl border border-line p-5"><div className="label mb-2">Findings</div>
-      <div className="space-y-1.5">{rev.findings.filter((f: any) => !f.line_hint).map((f: any, i: number) => <div key={i} className="flex gap-2 text-[13px]">
+    {(rev.findings || []).filter((f: any) => !f.line_hint && !f.line).length > 0 && <section className="rounded-2xl border border-line p-5"><div className="label mb-2">Findings</div>
+      <div className="space-y-1.5">{rev.findings.filter((f: any) => !f.line_hint && !f.line).map((f: any, i: number) => <div key={i} className="flex gap-2 text-[13px]">
         <span className={`mt-0.5 rounded px-1.5 text-[10.5px] ${f.severity === 'high' ? 'bg-[#f87171]/15 text-[#fca5a5]' : 'bg-[#facc15]/15 text-[#fde68a]'}`}>{f.severity}</span>
         <span className="text-ink-2">{plain(f.message)}</span>
         <button onClick={() => addComment({ body: `Please fix: ${plain(f.message)}`, path: f.path, finding_id: f.kind })} className="ml-auto shrink-0 text-[12px] text-[#93c5fd] hover:underline">Turn into comment</button></div>)}</div></section>}

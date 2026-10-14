@@ -25,6 +25,7 @@ export const CHECK_LABEL: Record<string, [string, string]> = {
   no_select_star: ['Explicit columns', 'No bare SELECT *'],
   ref_source_only: ['Uses ref/source', 'No hardcoded schemas or tables'],
   sqlfluff: ['SQL style (lint)', 'sqlfluff rules'],
+  sql_style: ['Team SQL style', 'Lint with the repo style config (sqlfluff)'],
   grain_unique: ['One row per grain', 'No duplicated or null keys'],
   no_fanout: ['No join fan-out', 'Joins did not multiply rows or inflate totals'],
   nulls_within_threshold: ['Nulls within limits', 'Keys never null; others within thresholds'],

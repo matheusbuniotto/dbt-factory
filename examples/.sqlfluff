@@ -1,0 +1,40 @@
+# Example team SQL style (machine rules). Copy to your dbt repo root as `.sqlfluff`,
+# point FACTORY_SQL_STYLE at it, or paste it in the UI (Settings · SQL style).
+# The dialect is always forced to the active adapter (duckdb / databricks / ...).
+[sqlfluff]
+# templater: jinja, or dbt (needs sqlfluff-templater-dbt; uses the task's .factory/profiles.yml)
+templater = jinja
+max_line_length = 100
+exclude_rules = ambiguous.column_count, structure.column_order
+
+[sqlfluff:indentation]
+indent_unit = space
+tab_space_size = 4
+indented_joins = false
+implicit_indents = allow
+
+[sqlfluff:layout:type:comma]
+# trailing commas
+line_position = trailing
+
+[sqlfluff:rules:capitalisation.keywords]
+capitalisation_policy = lower
+
+[sqlfluff:rules:capitalisation.identifiers]
+extended_capitalisation_policy = lower
+
+[sqlfluff:rules:capitalisation.functions]
+extended_capitalisation_policy = lower
+
+[sqlfluff:rules:aliasing.table]
+# `from orders as o`
+aliasing = explicit
+
+[sqlfluff:rules:aliasing.column]
+aliasing = explicit
+
+[sqlfluff:rules:ambiguous.join]
+fully_qualify_join_types = inner
+
+[sqlfluff:templater:jinja]
+apply_dbt_builtins = True
