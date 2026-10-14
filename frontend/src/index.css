@@ -1,0 +1,14 @@
+@font-face { font-family: "Geist"; src: url("/fonts/Geist-Variable.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "Geist Mono"; src: url("/fonts/GeistMono-Variable.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+html, body, #root { height: 100%; }
+body { background: #020202; color: #d6d3d2; font-family: Geist, system-ui, sans-serif; font-size: 13px; -webkit-font-smoothing: antialiased; }
+* { border-color: #232120; }
+::selection { background: rgba(239,111,46,.35); }
+::-webkit-scrollbar { width: 10px; height: 10px; } ::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2e2c2b; border-radius: 8px; border: 3px solid #0b0b0b; }
+.label { font-family: "Geist Mono", monospace; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: #8a8380; }
+.shimmer-text { background: linear-gradient(90deg, #8a8380 0%, #eeeeee 50%, #8a8380 100%); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 2.2s linear infinite; }
+@keyframes shimmer { 0% { background-position: 200% 0 } 100% { background-position: -200% 0 } }

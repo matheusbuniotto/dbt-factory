@@ -1,0 +1,94 @@
+# dbt factory
+
+Droid-style "software factory" for analytics engineers: describe a dbt change, an agent works in its own git worktree, runs `dbt build`, and the UI streams plan / tool calls / diff / SQL / data preview.
+
+## Setup
+Requirements: Python 3.12 + [uv](https://docs.astral.sh/uv/), Node 20+, git. Optional: `gh` (PRs / review verdicts) and the `claude` CLI (live engines).
+
+```
+./scripts/setup.sh       # .venv, frontend deps, clones jaffle_shop_duckdb into projects/ and builds its prod warehouse
+./run.sh                 # kills old instances, starts API :8787 and UI :5173
+open http://localhost:5173
+```
+Without credentials everything runs on the `mock` engine (real dbt work, canned agent stream).
+
+## Engines (`FACTORY_ENGINE=auto|mock|cli|sdk`)
+| engine | what runs | notes |
+|---|---|---|
+| `mock` | `backend/mock.py` | Replays a canned Claude-Code stream but really edits models and runs dbt. Default when no credentials. |
+| `cli`  | `claude -p ... --output-format stream-json --verbose` | Follow-ups use `--resume <session_id>`. |
+| `sdk`  | `backend/sdk_runner.py` (claude-agent-sdk `query()`) | Converts SDK messages to the same stream-json lines; `resume=` for follow-ups. |
+
+`auto` = `cli` if credentials exist, else `mock`. The new-session composer has an engine selector, so each task can pick its own engine (it stays fixed for that task's follow-ups).
+Both live engines use the same system prompt (`backend/prompts.py`), tools `Read, Write, Edit, Glob, Grep, Bash(dbt:*), Bash(ls:*), Bash(cat:*)`, `acceptEdits`, cwd = task worktree, `FACTORY_MAX_TURNS` (40). Cancel kills the engine's process group.
+
+Credentials (picked up by both live engines; `/api/health` reports `auth`):
+- `claude login` (subscription) → `~/.claude/.credentials.json`
+- `ANTHROPIC_API_KEY`
+- gateway: `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN` (e.g. LiteLLM)
+
+Other env: `FACTORY_MODEL` (passed as `--model` / `model=`), `CLAUDE_CODE_MAX_RETRIES` (default 2 so bad credentials fail fast), `DBT_FACTORY_ADAPTER=duckdb|databricks`.
+
+## LiteLLM / OpenAI-compatible providers
+Claude Code (and the Agent SDK, which drives it) speaks the Anthropic Messages API. LiteLLM exposes `/v1/messages` and translates to OpenAI or any OpenAI-compatible server.
+
+```
+export OPENAI_API_KEY=sk-...                 # or edit litellm/litellm_config.yaml
+./litellm/start_litellm.sh                    # proxy on :4000, master key sk-factory-local
+FACTORY_ENGINE=sdk FACTORY_MODEL=gpt-4o \
+ANTHROPIC_BASE_URL=http://localhost:4000 ANTHROPIC_AUTH_TOKEN=sk-factory-local \
+ANTHROPIC_SMALL_FAST_MODEL=gpt-4o-mini ANTHROPIC_DEFAULT_HAIKU_MODEL=gpt-4o-mini \
+./run.sh
+```
+`FACTORY_MODEL` must match a `model_name` in `litellm_config.yaml`. Add vLLM/Ollama/Groq etc. as `openai/<model>` entries with `api_base`. Non-Claude models must be good at tool calling; quality varies.
+
+## Tests
+`.venv/bin/python -m pytest -q backend/tests` (SDK message → UI event normalization).
+
+## API
+`POST /api/tasks {prompt, engine?}` · `GET /api/tasks[/{id}]` · `GET /api/tasks/{id}/events?since=N` (SSE) · `POST /api/tasks/{id}/messages {content}` · `POST /api/tasks/{id}/cancel` · `GET /api/tasks/{id}/diff` · `GET /api/tasks/{id}/preview` · `POST /api/tasks/{id}/pr` · `POST /api/tasks/{id}/cleanup[?delete_branch=true]` · `GET /api/health`
+
+## Agent tooling: `dbt-factory-tools` MCP server (`backend/mcp_server.py`)
+Local stdio MCP server, registered per task: the CLI gets `--mcp-config .factory/mcp.json`, the SDK gets `mcp_servers=`. Allowed as `mcp__dbt-factory-tools`.
+- dbt: `dbt_list` (manifest search + selectors), `dbt_lineage` (up/downstream by level), `dbt_compile`, `dbt_build` (build/test/run with selectors, structured `run_results.json`), `dbt_failing_test_rows`, `dbt_docs`, `dbt_source_freshness`
+- data: `data_profile`, `data_histogram`, `data_compare` (prod vs dev target: row delta, schema, column stats, key-based diff), `data_sample`, `data_query` (read-only SELECT, LIMIT ≤ 500, timeout)
+
+### No local data (hard rule)
+All data goes through the configured dbt target via `dbt show --inline` (`backend/factory_tools/warehouse.py`). SQL is built from dbt macros (`adapter.get_columns_in_relation`, `adapter.quote`, `dbt.type_string()`), so it stays adapter-agnostic. Each task profile has `dev` (the task's schema/db) and `prod` (baseline) targets. Ad-hoc SQL is parsed with sqlglot: one SELECT only; no DML/DDL, no jinja beyond `ref`/`source`, no file readers (`read_csv`, `'x.parquet'`, `parquet.\`path\``). The agent can't `Read`/`Edit` data files (csv/parquet/duckdb/seeds/…), and `cat/head/python/duckdb/…` are disallowed in Bash. The UI preview also uses `dbt show`.
+
+### Project skills
+Both engines load project settings and skills (`--setting-sources project` / `setting_sources=["project"]`, plus the `Skill` tool). The demo repo has `.claude/skills/dbt-model-conventions`. The UI composer chip "N skills · M mcp tools" lists the skills and MCP tools, taken from the engine's init event (or a static scan in mock mode).
+
+Tests: `.venv/bin/python -m pytest -q backend/tests` (~45 tests, ~3 min: SQL guard, every tool against a real worktree, MCP over stdio, SDK normalization).
+
+## Definition of Done (gates)
+
+After every succeeded turn the backend runs code + data gates on the preview model and emits a `gate` event. The UI shows a **Done n/m** chip and a **Done** scorecard tab (plain-language check names). Agents must call `definition_of_done` and iterate (or emit `<waiver id="CHECK">reason</waiver>` — never for `dbt_compile`, `dbt_build`, or `grain_unique`).
+
+Code: compile, build, docs+tests, grain declared, naming (`stg_`/`int_`/`fct_`/`dim_`), no bare `SELECT *`, `ref`/`source` only, sqlfluff.
+Data (via dbt target only): grain unique, no fan-out (incl. inflated `number_of_orders`-style counts), nulls, row-count vs prod, reconcile, preview sanity.
+
+`GET /api/tasks/{id}/gate?refresh=true` re-runs.
+
+## Review (analyst view)
+
+Per-task **Review** mode (no keyboard nav): overall risk badge + look-first list, models ordered by risk with plain-language reasons and downstream impact, code diff beside data-vs-prod compare, inline findings, comments (line + general) with resolve, **Send to droid** (packages open comments as a follow-up turn), and Approve / Request changes. Optional "post to GitHub PR" is only executed when the user ticks it and clicks Submit (`gh pr review`).
+
+`GET /api/tasks/{id}/review`, `POST .../comments`, `POST .../comments/send-to-agent`, `POST .../verdict`.
+
+## Evals
+
+```bash
+.venv/bin/python -m evals list
+.venv/bin/python -m evals run --engine mock                 # all cases
+.venv/bin/python -m evals run --engine mock --case monthly_revenue
+```
+
+Six jaffle cases under `evals/cases/`. Scores: data 50% · code 25% · gates 25% (optional LLM judge 10% when `FACTORY_JUDGE=claude`). A case **passes** when every data assertion (incl. golden-query equivalence through the adapter) holds and code ≥ 75%. Results in `evals/results/<run_id>.json`. UI: sidebar **Evals** (runs list, per-case scorecards, compare two runs, "Run mock evals").
+
+## Best practices
+
+`docs/BEST_PRACTICES.md` is appended to the system prompt and shipped as a skill template in `docs/skills-template/`. Project skills under `.claude/skills/` win on conflicts.
+
+## Screenshots
+`screenshots/` — `gate-scorecard.png`, `review-analyst.png`, `review-verdict.png`, `evals-compare.png`, `tools-profile-compare.png`, … Sample eval result: `evals/results/mock-final.json`.

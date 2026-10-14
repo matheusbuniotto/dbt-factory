@@ -1,0 +1,18 @@
+id: status_summary
+title: Order status summary with is_returned flag
+tags: [basic, accepted_values]
+request: Build an order status summary with an is_returned flag (returned or return_pending), order count and amount per status.
+target_model: fct_order_status_summary
+code:
+  required_columns: [status, is_returned, order_count, amount]
+  grain: [status]
+data:
+  - name: returned flag only on returned statuses
+    query: "select count(*) as v from {{ ref('{model}') }} where is_returned and status not in ('returned','return_pending')"
+    expect: 0
+  - name: five statuses
+    row_count: 5
+golden:
+  reference_sql: "select status, status in ('returned','return_pending') as is_returned, count(*) as order_count, sum(amount) as amount from {{ ref('orders') }} group by 1, 2"
+  key: [status]
+  columns: [status, is_returned, order_count, amount]

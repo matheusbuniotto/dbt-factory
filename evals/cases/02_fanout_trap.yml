@@ -1,0 +1,22 @@
+id: fanout_trap
+title: Customer payments (join fan-out trap)
+tags: [tricky, fan-out]
+request: Build fct_customer_payments with one row per customer, number of orders and total paid across payments.
+target_model: fct_customer_payments
+notes: Orders have multiple payments; counting orders after joining payments inflates number_of_orders.
+code:
+  required_columns: [customer_id, number_of_orders, total_paid]
+  grain: [customer_id]
+data:
+  - name: number_of_orders sums to distinct orders
+    query: "select sum(number_of_orders) as v from {{ ref('{model}') }}"
+    expect_query: "select count(*) as v from {{ ref('stg_orders') }}"
+  - name: total_paid equals payments total
+    query: "select sum(total_paid) as v from {{ ref('{model}') }}"
+    expect_query: "select sum(amount) as v from {{ ref('stg_payments') }}"
+    tolerance: 0.001
+golden:
+  reference_sql: "select o.customer_id, count(distinct o.order_id) as number_of_orders, sum(p.amount) as total_paid from {{ ref('stg_orders') }} o left join {{ ref('stg_payments') }} p on o.order_id = p.order_id group by 1"
+  key: [customer_id]
+  columns: [customer_id, number_of_orders, total_paid]
+  tolerance: 0.001
