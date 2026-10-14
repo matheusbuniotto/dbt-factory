@@ -29,18 +29,15 @@ Credentials (picked up by both live engines; `/api/health` reports `auth`):
 
 Other env: `FACTORY_MODEL` (passed as `--model` / `model=`), `CLAUDE_CODE_MAX_RETRIES` (default 2 so bad credentials fail fast), `DBT_FACTORY_ADAPTER=duckdb|databricks`.
 
-## LiteLLM / OpenAI-compatible providers
-Claude Code (and the Agent SDK, which drives it) speaks the Anthropic Messages API. LiteLLM exposes `/v1/messages` and translates to OpenAI or any OpenAI-compatible server.
+## External gateway (LiteLLM or any Anthropic-compatible proxy)
+The factory does not ship or run a proxy. Point it at the gateway your platform provides:
 
 ```
-export OPENAI_API_KEY=sk-...                 # or edit litellm/litellm_config.yaml
-./litellm/start_litellm.sh                    # proxy on :4000, master key sk-factory-local
-FACTORY_ENGINE=sdk FACTORY_MODEL=gpt-4o \
-ANTHROPIC_BASE_URL=http://localhost:4000 ANTHROPIC_AUTH_TOKEN=sk-factory-local \
-ANTHROPIC_SMALL_FAST_MODEL=gpt-4o-mini ANTHROPIC_DEFAULT_HAIKU_MODEL=gpt-4o-mini \
+FACTORY_ENGINE=sdk FACTORY_MODEL=<model-name-on-gateway> \
+ANTHROPIC_BASE_URL=https://your-gateway ANTHROPIC_AUTH_TOKEN=<token> \
 ./run.sh
 ```
-`FACTORY_MODEL` must match a `model_name` in `litellm_config.yaml`. Add vLLM/Ollama/Groq etc. as `openai/<model>` entries with `api_base`. Non-Claude models must be good at tool calling; quality varies.
+The gateway must expose the Anthropic Messages API (`/v1/messages`). Non-Claude models must be good at tool calling; quality varies.
 
 ## Tests
 `.venv/bin/python -m pytest -q backend/tests` (SDK message → UI event normalization).

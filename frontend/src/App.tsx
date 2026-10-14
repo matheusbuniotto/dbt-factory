@@ -225,7 +225,7 @@ export default function App() {
   const filtered = tasks.filter(t => t.prompt.toLowerCase().includes(q.toLowerCase()))
   const running = task?.status === 'running'
   const ENGINE_LABEL: Record<string, string> = { mock: 'mock-replay', cli: 'claude -p', sdk: 'agent-sdk' }
-  const authLabel = health.auth === 'gateway' ? 'litellm' : health.auth === 'claude_login' ? 'subscription' : health.auth === 'api_key' ? 'api key' : 'no auth'
+  const authLabel = health.auth === 'gateway' ? 'gateway' : health.auth === 'claude_login' ? 'subscription' : health.auth === 'api_key' ? 'api key' : 'no auth'
   const tail = [health.model || 'default model', health.adapter || 'duckdb']
   const engineSelect = <label className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-accent" />
     <select value={engine || health.engine || 'mock'} onChange={e => setEngine(e.target.value)} className="cursor-pointer bg-transparent text-ink-2 outline-none [&>option]:bg-raised">

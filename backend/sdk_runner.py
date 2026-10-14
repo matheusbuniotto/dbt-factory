@@ -56,7 +56,7 @@ async def main(prompt, resume=None):
             if o:
                 got_result |= o["type"] == "result"; out(o)
     except ClaudeSDKError as ex:
-        hint = "" if claude_auth() else " No credentials found: set ANTHROPIC_API_KEY, or ANTHROPIC_BASE_URL + ANTHROPIC_AUTH_TOKEN for a LiteLLM proxy, or run `claude login`."
+        hint = "" if claude_auth() else " No credentials found: set ANTHROPIC_API_KEY, or ANTHROPIC_BASE_URL + ANTHROPIC_AUTH_TOKEN for an external gateway, or run `claude login`."
         tail = "\n".join(stderr_tail[-8:])
         if got_result:  # CLI already reported the error as a result; just add the hint
             if hint: out({"type": "assistant", "message": {"content": [{"type": "text", "text": "Engine hint:" + hint}]}})
