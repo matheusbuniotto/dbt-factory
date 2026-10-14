@@ -1,0 +1,12 @@
+# CI / developer tooling (pinned for reproducible gates). Runtime deps live in requirements.txt.
+ruff==0.17.0
+mypy==2.4.0
+types-PyYAML==6.0.12.20260906
+radon==6.0.1
+xenon==0.9.3
+lizard==1.24.1
+bandit==1.9.4
+pip-audit==2.10.1
+pytest-cov==7.1.0
+diff-cover==10.6.0
+pre-commit==4.7.0

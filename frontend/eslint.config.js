@@ -5,7 +5,7 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
-  { ignores: ['dist'] },
+  { ignores: ['dist', '*.mjs'] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ['**/*.{ts,tsx}'],
@@ -19,6 +19,9 @@ export default tseslint.config(
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
+      // API payloads are loosely typed JSON today; tracked as a ratcheted warning budget in CI
+      // (eslint --max-warnings, see docs/CI.md) instead of being silently disabled.
+      '@typescript-eslint/no-explicit-any': 'warn',
       'react-refresh/only-export-components': [
         'warn',
         { allowConstantExport: true },

@@ -1,0 +1,1 @@
+# Trivy ignore list. Keep empty unless a finding is triaged; each entry needs an owner + reason + expiry.

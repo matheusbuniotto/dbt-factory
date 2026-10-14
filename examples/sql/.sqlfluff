@@ -1,0 +1,12 @@
+# Lint config for the reference SQL in examples/sql (the mock agent's canned solutions).
+# Dialect matches the demo adapter (duckdb); dbt builtins (ref/source) are stubbed by the jinja templater.
+[sqlfluff]
+dialect = duckdb
+templater = jinja
+max_line_length = 120
+
+[sqlfluff:templater:jinja]
+apply_dbt_builtins = True
+
+[sqlfluff:rules:capitalisation.keywords]
+capitalisation_policy = lower

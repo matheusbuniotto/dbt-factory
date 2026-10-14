@@ -1,4 +1,5 @@
 from pathlib import Path
+
 _BP = Path(__file__).resolve().parents[1] / "docs" / "BEST_PRACTICES.md"
 _BEST = _BP.read_text() if _BP.exists() else ""
 

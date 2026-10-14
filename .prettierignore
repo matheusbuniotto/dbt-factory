@@ -1,0 +1,8 @@
+projects/
+worktrees/
+state/
+evals/results/
+frontend/dist/
+frontend/node_modules/
+package-lock.json
+.ci/complexity-baseline.json

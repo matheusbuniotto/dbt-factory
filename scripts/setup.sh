@@ -2,9 +2,9 @@
 # One-time setup: python venv, frontend deps, demo dbt project (jaffle_shop_duckdb) with prod warehouse + skills.
 set -euo pipefail; cd "$(dirname "$0")/.."; ROOT=$(pwd)
 command -v uv >/dev/null || { echo "install uv: https://docs.astral.sh/uv/"; exit 1; }
-[ -d .venv ] || uv venv .venv --python 3.12
+[ -d .venv ] || uv venv .venv --python "${PYTHON_VERSION:-3.12}"
 uv pip install --python .venv/bin/python -r requirements.txt
-(cd frontend && npm install)
+if [ "${SKIP_FRONTEND:-0}" != "1" ]; then (cd frontend && npm ci); fi
 if [ ! -d projects/jaffle_shop ]; then
   git clone https://github.com/dbt-labs/jaffle_shop_duckdb projects/jaffle_shop
   mkdir -p projects/jaffle_shop/.claude/skills && cp -r examples/jaffle_shop_skills/* projects/jaffle_shop/.claude/skills/

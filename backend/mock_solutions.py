@@ -1,15 +1,30 @@
 """Canned mock solutions keyed by prompt. Some are intentionally flawed so evals fail realistically."""
+
 import re
 
-SOLUTIONS = []
+SOLUTIONS: list[dict] = []
+
 
 def solution(pattern, model, sql, yml, plan, summary, waivers=None, followup=None):
-    SOLUTIONS.append({"re": re.compile(pattern, re.I), "model": model, "sql": sql, "yml": yml, "plan": plan,
-                      "summary": summary, "waivers": waivers or {}, "followup": followup})
+    SOLUTIONS.append(
+        {
+            "re": re.compile(pattern, re.I),
+            "model": model,
+            "sql": sql,
+            "yml": yml,
+            "plan": plan,
+            "summary": summary,
+            "waivers": waivers or {},
+            "followup": followup,
+        }
+    )
+
 
 # 1) correct monthly revenue (default)
-solution(r"monthly revenue|revenue mart", "fct_monthly_revenue",
-"""with orders as (
+solution(
+    r"monthly revenue|revenue mart",
+    "fct_monthly_revenue",
+    """with orders as (
     select * from {{ ref('orders') }}
 )
 
@@ -22,7 +37,7 @@ select
 from orders
 group by 1
 """,
-"""version: 2
+    """version: 2
 models:
   - name: fct_monthly_revenue
     description: Monthly orders, customers, revenue and AOV.
@@ -44,13 +59,16 @@ models:
       - name: avg_order_value
         description: revenue / order_count.
 """,
-"- Read `orders` mart\n- Add `fct_monthly_revenue` at month grain\n- Document + test grain\n- Build, profile, run Definition of Done",
-"fct_monthly_revenue: grain order_month, revenue reconciles with orders.amount.",
-waivers={"reconciles": "new model; reconciled manually against sum(orders.amount)"})
+    "- Read `orders` mart\n- Add `fct_monthly_revenue` at month grain\n- Document + test grain\n- Build, profile, run Definition of Done",
+    "fct_monthly_revenue: grain order_month, revenue reconciles with orders.amount.",
+    waivers={"reconciles": "new model; reconciled manually against sum(orders.amount)"},
+)
 
 # 2) FAN-OUT TRAP: customer payments, naive join inflates order counts
-solution(r"customer.*(payment|paid)|payments per customer|fan.?out", "fct_customer_payments",
-"""with orders as (
+solution(
+    r"customer.*(payment|paid)|payments per customer|fan.?out",
+    "fct_customer_payments",
+    """with orders as (
     select * from {{ ref('stg_orders') }}
 ),
 
@@ -66,7 +84,7 @@ from orders
 left join payments on orders.order_id = payments.order_id
 group by 1
 """,
-"""version: 2
+    """version: 2
 models:
   - name: fct_customer_payments
     description: One row per customer with orders and total paid.
@@ -79,12 +97,15 @@ models:
       - name: total_paid
         description: Sum of payments.
 """,
-"- Join stg_orders to stg_payments\n- Aggregate per customer\n- Test customer_id grain",
-"fct_customer_payments built (one row per customer).")
+    "- Join stg_orders to stg_payments\n- Aggregate per customer\n- Test customer_id grain",
+    "fct_customer_payments built (one row per customer).",
+)
 
 # 3) grain ambiguity: daily orders by status (composite grain declared)
-solution(r"daily.*status|orders by status per day|status per day", "fct_daily_orders_by_status",
-"""with orders as (
+solution(
+    r"daily.*status|orders by status per day|status per day",
+    "fct_daily_orders_by_status",
+    """with orders as (
     select * from {{ ref('orders') }}
 )
 
@@ -96,7 +117,7 @@ select
 from orders
 group by 1, 2
 """,
-"""version: 2
+    """version: 2
 models:
   - name: fct_daily_orders_by_status
     description: Orders and amount per day and status.
@@ -119,13 +140,16 @@ models:
       - name: amount
         description: Amount.
 """,
-"- Grain is (order_date, status)\n- Declare meta.grain\n- accepted_values on status",
-"fct_daily_orders_by_status at (order_date, status) grain.",
-waivers={"reconciles": "new model; totals equal orders.amount"})
+    "- Grain is (order_date, status)\n- Declare meta.grain\n- accepted_values on status",
+    "fct_daily_orders_by_status at (order_date, status) grain.",
+    waivers={"reconciles": "new model; totals equal orders.amount"},
+)
 
 # 4) NULL HANDLING: customers with no orders should have 0 LTV — mock forgets coalesce
-solution(r"lifetime value|ltv|no orders.*0", "dim_customer_ltv",
-"""with customers as (
+solution(
+    r"lifetime value|ltv|no orders.*0",
+    "dim_customer_ltv",
+    """with customers as (
     select * from {{ ref('stg_customers') }}
 ),
 
@@ -148,7 +172,7 @@ select
 from customers
 left join ltv on customers.customer_id = ltv.customer_id
 """,
-"""version: 2
+    """version: 2
 models:
   - name: dim_customer_ltv
     description: Customer lifetime value.
@@ -161,12 +185,15 @@ models:
       - name: lifetime_value
         description: Sum of order amounts.
 """,
-"- Aggregate orders per customer\n- Left join to customers",
-"dim_customer_ltv built.")
+    "- Aggregate orders per customer\n- Left join to customers",
+    "dim_customer_ltv built.",
+)
 
 # 5) MONTH BOUNDARY: Q1 revenue — mock uses < '2018-03-31' (excludes Mar 31)
-solution(r"q1|first quarter|jan.*mar", "fct_q1_2018_revenue",
-"""with orders as (
+solution(
+    r"q1|first quarter|jan.*mar",
+    "fct_q1_2018_revenue",
+    """with orders as (
     select * from {{ ref('orders') }}
 )
 
@@ -178,7 +205,7 @@ from orders
 where order_date >= '2018-01-01' and order_date < '2018-03-31'
 group by 1
 """,
-"""version: 2
+    """version: 2
 models:
   - name: fct_q1_2018_revenue
     description: Q1 2018 revenue by status.
@@ -194,13 +221,16 @@ models:
       - name: order_count
         description: Orders.
 """,
-"- Filter Q1 2018\n- Revenue by status",
-"fct_q1_2018_revenue built.",
-waivers={"reconciles": "new model"})
+    "- Filter Q1 2018\n- Revenue by status",
+    "fct_q1_2018_revenue built.",
+    waivers={"reconciles": "new model"},
+)
 
 # 6) status summary with is_returned flag (correct)
-solution(r"is_returned|returned flag|status summary", "fct_order_status_summary",
-"""with orders as (
+solution(
+    r"is_returned|returned flag|status summary",
+    "fct_order_status_summary",
+    """with orders as (
     select * from {{ ref('orders') }}
 )
 
@@ -212,7 +242,7 @@ select
 from orders
 group by 1, 2
 """,
-"""version: 2
+    """version: 2
 models:
   - name: fct_order_status_summary
     description: Orders and amount per status with return flag.
@@ -231,11 +261,14 @@ models:
       - name: amount
         description: Amount.
 """,
-"- Group by status\n- Add is_returned flag",
-"fct_order_status_summary built.",
-waivers={"reconciles": "new model; totals equal orders"})
+    "- Group by status\n- Add is_returned flag",
+    "fct_order_status_summary built.",
+    waivers={"reconciles": "new model; totals equal orders"},
+)
+
 
 def pick(prompt):
     for s in SOLUTIONS:
-        if s["re"].search(prompt or ""): return s
+        if s["re"].search(prompt or ""):
+            return s
     return SOLUTIONS[0]

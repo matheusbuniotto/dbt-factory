@@ -1,0 +1,29 @@
+name: Setup Python env
+description: Install uv + Python, create .venv with runtime (and optionally dev) requirements, cached by lockfile hash.
+inputs:
+  python-version:
+    description: Python version for the venv
+    default: '3.12'
+  dev:
+    description: Also install requirements-dev.txt
+    default: 'true'
+runs:
+  using: composite
+  steps:
+    - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      with:
+        python-version: ${{ inputs.python-version }}
+        enable-cache: true
+        cache-dependency-glob: |
+          requirements*.txt
+    - name: Create venv and install
+      shell: bash
+      env:
+        PY: ${{ inputs.python-version }}
+        DEV: ${{ inputs.dev }}
+      run: |
+        uv venv .venv --python "$PY"
+        uv pip install --python .venv/bin/python -r requirements.txt
+        if [ "$DEV" = "true" ]; then uv pip install --python .venv/bin/python -r requirements-dev.txt; fi
+        echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
+        echo "VIRTUAL_ENV=$GITHUB_WORKSPACE/.venv" >> "$GITHUB_ENV"
