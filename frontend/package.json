@@ -22,7 +22,7 @@
     "@vitejs/plugin-react": "^5.2.0",
     "eslint": "^9.13.0",
     "eslint-plugin-react-hooks": "^5.0.0",
-    "eslint-plugin-react-refresh": "^0.4.14",
+    "eslint-plugin-react-refresh": "^0.5.7",
     "globals": "^15.11.0",
     "postcss": "^8.5.30",
     "puppeteer-core": "^25.13.0",
