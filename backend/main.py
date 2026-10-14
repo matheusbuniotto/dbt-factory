@@ -56,7 +56,8 @@ def engine_of(t):
 
 # ignore build artifacts in every worktree
 excl = f"{PROJECT}/.git/info/exclude"
-if ".factory/" not in open(excl).read():
+# the project may not be cloned yet (fresh container); setup/run will create it
+if os.path.exists(excl) and ".factory/" not in open(excl).read():
     open(excl, "a").write("\n.factory/\nwarehouse.duckdb*\ntarget/\nlogs/\ndbt_packages/\n*.duckdb\n")
 
 TASKS: dict = {}

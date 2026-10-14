@@ -84,7 +84,7 @@ Also checked: xenon average rank ≤ B and jscpd duplication ≤ 3%. The markdow
 
 pytest on Python 3.11, 3.12 and 3.13 (`fail-fast: false`). `scripts/setup.sh` runs first: it clones `jaffle_shop_duckdb` and builds the
 "prod" warehouse that the tool tests query through the dbt adapter. Coverage (line + branch) must stay at or above `.ci/coverage-threshold`
-(48%; measured 52%). On PRs, **diff-cover** requires ≥ 80% coverage on changed lines. JUnit XML and coverage.xml are uploaded and summarised.
+(48%; measured 52%). On PRs, **diff-cover** requires ≥ 80% coverage on changed lines; bulk PRs touching more than 500 Python lines (e.g. a mass reformat) get a report but are not blocked, since the global gate still applies. JUnit XML and coverage.xml are uploaded and summarised.
 
 ### Data
 

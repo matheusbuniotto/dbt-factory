@@ -204,7 +204,15 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: |
           git fetch --no-tags origin "$BASE_REF"
-          diff-cover coverage.xml --compare-branch="origin/$BASE_REF" --fail-under=80 --markdown-report diff-cover.md
+          # Bulk PRs (mass reformat/refactor touching > 500 Python lines) are covered by the global gate;
+          # for those diff-cover still reports but does not block. Normal PRs need >= 80% on changed lines.
+          changed=$(git diff --numstat "origin/$BASE_REF...HEAD" -- '*.py' | awk '{s+=$1} END {print s+0}')
+          fail_under=80
+          if [ "$changed" -gt 500 ]; then
+            fail_under=0
+            echo "::warning title=diff-cover advisory::$changed changed Python lines (> 500): reporting only"
+          fi
+          diff-cover coverage.xml --compare-branch="origin/$BASE_REF" --fail-under="$fail_under" --markdown-report diff-cover.md
       - name: Test summary
         if: always()
         env:
