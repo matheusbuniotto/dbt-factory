@@ -10,11 +10,13 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 import projects as PJ
+from style_api import router as style_router
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STATE = os.path.realpath(os.environ.get("FACTORY_STATE_DIR") or f"{ROOT}/state")
 os.makedirs(STATE, exist_ok=True)
 router = APIRouter()
+router.include_router(style_router)  # /api/style (per-project SQL style)
 
 
 def has_running_tasks(pid: str) -> bool:  # replaced by main.py
@@ -192,7 +194,9 @@ def prepare_worktree(det, tid, branch, wt_root):
     with open(f"{task_dir}/.factory/.gitignore", "w") as f:
         f.write("# dbt-factory scratch (profiles, dev warehouse, logs): never committed\n*\n")
     with open(f"{task_dir}/.factory/project.json", "w") as f:
-        json.dump(PJ.task_context(det), f, indent=2)
+        ctx = {**PJ.task_context(det), "project_id": PJ.project_id(det["path"]), "worktree_root": wt}
+        ctx.update(project_root=root, project_dir=det["dbt_dir"] if det["mode"] == "dbt" else det["path"])
+        json.dump(ctx, f, indent=2)
     if det["mode"] == "dbt":
         try:
             prof = PJ.render_task_profile(det, tid, task_dir)

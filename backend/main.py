@@ -37,6 +37,8 @@ from factory_tools import review as REVIEW
 from factory_tools import warehouse as WH
 from factory_tools.gates import parse_waivers
 from prompts import system_prompt
+from style_api import style_caps
+from task_locks import tlock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WT_ROOT = os.path.realpath(os.environ.get("FACTORY_WORKTREES_DIR") or f"{ROOT}/worktrees")
@@ -217,7 +219,7 @@ def run_task(t, prompt, followup=False):
                 "stream-json",
                 "--verbose",
                 "--append-system-prompt",
-                system_prompt(t.get("mode", "dbt")),
+                system_prompt(t.get("mode", "dbt"), wt),
                 "--allowedTools",
                 ",".join(ALLOWED_TOOLS),
                 "--disallowedTools",
@@ -270,7 +272,8 @@ def run_task(t, prompt, followup=False):
         t["phase"] = "gating"
         save(t)
         try:
-            _run_post_turn_gate(t)
+            with tlock(t["id"]):
+                _run_post_turn_gate(t)
         except Exception as ex:
             emit(t, "log", text=f"gate error: {ex}")
         finally:
@@ -521,6 +524,7 @@ def capabilities(tid: str):
     caps = dict(t.get("capabilities") or {})
     if not t.get("cleaned"):
         caps["skills"] = project_skills(t["worktree"])
+    caps["sql_style"] = style_caps(None if t.get("cleaned") else t["worktree"], t.get("project_id"))
     return caps
 
 
@@ -643,12 +647,13 @@ def get_gate(tid: str, refresh: bool = False):
     if t.get("cleaned"):
         raise HTTPException(410, "worktree cleaned up")
     if refresh or not t.get("gate"):
-        model = t.get("preview_model")
-        gate = _compute_gate(t, model)
-        if not gate:
-            raise HTTPException(404, "no model")
-        t["gate"] = gate
-        save(t)
+        with tlock(tid):
+            model = t.get("preview_model")
+            gate = _compute_gate(t, model)
+            if not gate:
+                raise HTTPException(404, "no model")
+            t["gate"] = gate
+            save(t)
     return t["gate"]
 
 
@@ -658,10 +663,10 @@ def get_review(tid: str, refresh: bool = False):
     if t.get("cleaned"):
         raise HTTPException(410, "worktree cleaned up")
     if refresh or not t.get("review"):
-        t["review"] = REVIEW.build_review(
-            t["worktree"], model=t.get("preview_model"), base=t.get("base") or "HEAD", run_data=t["status"] != "running"
-        )
-        save(t)
+        with tlock(tid):
+            kw = {"base": t.get("base") or "HEAD", "run_data": t["status"] != "running"}
+            t["review"] = REVIEW.build_review(t["worktree"], model=t.get("preview_model"), **kw)
+            save(t)
     rev = dict(t["review"])
     rev["comments"] = t.get("comments") or []
     rev["verdict"] = t.get("verdict")

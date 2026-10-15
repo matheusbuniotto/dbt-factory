@@ -156,9 +156,29 @@ Six jaffle cases under `evals/cases/`. Scores: data 50% · code 25% · gates 25%
 
 `docs/BEST_PRACTICES.md` is appended to the system prompt and shipped as a skill template in `docs/skills-template/`. Project skills under `.claude/skills/` win on conflicts.
 
+## SQL style (configurable)
+
+The team style is discovered per task, from that task's own project. The first hit wins for each kind:
+
+1. `FACTORY_SQL_STYLE`: path to a file or directory (`.sqlfluff`/`.cfg`/`.ini` → rules, `.md` → guide)
+2. repo `.factory/config.yml` key `sql_style:` — a path (relative to the repo) or `{rules: path, guide: path}`
+3. repo `.sqlfluff`
+4. repo `.factory/.sqlfluff`
+5. repo `.factory/sql_style.md`
+6. repo `.claude/sql_style.md`, `.claude/STYLE.md`, `.claude/style_guide.md`, or `.claude/skills/*style*/SKILL.md`
+7. the style saved from the UI for that project (kept in `state/style/<project id>/`, never written to your repo)
+
+"Repo" means, in order: the task dir (the dbt sub-directory of the worktree), the worktree root, then the task's project (its dbt directory, then the repo root). The factory records these in `<task>/.factory/project.json` when it creates the task.
+
+- **Machine rules** are a sqlfluff config. The `sql_style` gate lints the changed model and reports violations with line numbers. The dialect is always forced to the task's project dialect (`duckdb`, `databricks`, …). Templating uses `dbt` when the config asks for it and `sqlfluff-templater-dbt` is installed (it uses the task's `.factory/profiles.yml`); otherwise it uses `jinja` with `apply_dbt_builtins`. The merged config is written to `<worktree>/.factory/sqlfluff.cfg`.
+- **Style guide** is markdown. It is appended to the agent system prompt (cli and sdk) and shown in Review beside the findings. Violations appear inline on the diff lines.
+- **UI:** use *Settings · SQL style* in the sidebar to paste or upload either file. It applies to the project selected in the picker and is saved in dbt-factory state; repo style files still win over it. The composer capabilities popover shows the active source.
+- **API:** `GET /api/style?project_id=…`, `PUT /api/style?project_id=… {sqlfluff?, guide?}` (default project when omitted) (an empty string removes the saved one).
+- **Examples:** `examples/.sqlfluff` and `examples/sql_style.md`. Try `FACTORY_SQL_STYLE=$PWD/examples ./run.sh`, then ask for "a summary by payment method". The mock writes sloppy SQL, the gate goes red, and "Send to droid" runs `sqlfluff fix` to bring it back to green.
+
 ## Screenshots
 
-`screenshots/` — `gate-scorecard.png`, `review-analyst.png`, `review-verdict.png`, `evals-compare.png`, `tools-profile-compare.png`, … Sample eval result: `evals/results/mock-final.json`.
+`screenshots/` — `gate-scorecard.png`, `style-review-inline.png`, `style-settings.png`, `style-gate.png`, `review-analyst.png`, `review-verdict.png`, `evals-compare.png`, `tools-profile-compare.png`, … Sample eval result: `evals/results/mock-final.json`.
 
 ## CI
 

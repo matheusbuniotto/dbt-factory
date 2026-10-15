@@ -22,6 +22,8 @@ export type Project = {
 type TaskLike = { id: string; project_id?: string; project_name?: string }
 
 const LS_KEY = 'factory.project'
+/** Selected project id (as remembered by the picker); '' means the server default. */
+export const selectedProjectId = () => localStorage.getItem(LS_KEY) || ''
 
 /** Registered projects + the current selection (persisted per browser). */
 export function useProjects(defaultId?: string) {

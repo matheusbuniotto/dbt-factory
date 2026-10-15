@@ -53,6 +53,7 @@ DIALECTS = {
 SCHEMA_KEY = {"bigquery": "dataset"}  # where the dev "schema" lives in a profile output
 CONFIG_FILE = os.path.join(".factory", "config.yml")
 CONFIG_KEYS = {
+    "sql_style",  # SQL style: a path (file/dir) or {rules: path, guide: path}, relative to the repo
     "dbt_project_dir",  # sub-directory with dbt_project.yml (monorepos); auto-detected otherwise
     "profiles_dir",  # explicit profiles dir (relative to repo or absolute)
     "profile",  # override dbt_project.yml `profile:`

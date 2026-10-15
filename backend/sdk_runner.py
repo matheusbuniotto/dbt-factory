@@ -77,7 +77,7 @@ async def main(prompt, resume=None):
         system_prompt={
             "type": "preset",
             "preset": "claude_code",
-            "append": system_prompt(os.environ.get("FACTORY_MODE", "dbt")),
+            "append": system_prompt(os.environ.get("FACTORY_MODE", "dbt"), os.getcwd()),
         },
         allowed_tools=ALLOWED_TOOLS,
         disallowed_tools=DISALLOWED_TOOLS,

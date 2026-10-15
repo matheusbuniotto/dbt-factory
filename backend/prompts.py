@@ -38,5 +38,8 @@ read data files. Do not invent results. Lint is checked by the factory (sqlfluff
 """
 
 
-def system_prompt(mode: str = "dbt") -> str:
-    return SYSTEM_PROMPT + (SQL_MODE_NOTE if mode == "sql" else "")
+def system_prompt(mode: str = "dbt", cwd=None) -> str:
+    """Base prompt (+ plain-SQL note) + the task's SQL style (task worktree, then its project; see sql_style)."""
+    from factory_tools import sql_style as ST
+
+    return SYSTEM_PROMPT + (SQL_MODE_NOTE if mode == "sql" else "") + ST.prompt_block(ST.discover(cwd))

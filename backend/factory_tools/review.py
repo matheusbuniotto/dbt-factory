@@ -215,10 +215,58 @@ def _anchor(cwd, path, check_id):
     return None
 
 
+def _src_lines(cwd, path):
+    if not cwd:
+        return []
+    try:
+        with open(os.path.join(cwd, path)) as fh:
+            return fh.read().splitlines()
+    except OSError:
+        return []
+
+
+def _style_findings(c, path_for_model, cwd):
+    """One inline finding per offending line (sqlfluff codes grouped, repeats counted)."""
+    path = c.get("path") or path_for_model
+    src = _src_lines(cwd, path)
+    by_line: dict = {}
+    for v in c["violations"][:80]:
+        by_line.setdefault(v.get("line"), {}).setdefault(v.get("code"), [v.get("description"), 0])[1] += 1
+    out = []
+    for ln, codes in by_line.items():
+        msg = "; ".join(f"{code} {d}" + (f" (×{n})" if n > 1 else "") for code, (d, n) in codes.items())
+        hint = src[ln - 1].strip()[:80] if ln and 0 < ln <= len(src) else None
+        out.append(
+            {
+                "path": path,
+                "line": ln,
+                "line_hint": hint,
+                "kind": "sql_style",
+                "severity": "low",
+                "codes": list(codes),
+                "source": c.get("source"),
+                "message": f"[code/sql_style] L{ln}: {msg}",
+                "status": c["status"],
+            }
+        )
+    return out
+
+
+def _style_summary(cwd):
+    from . import sql_style as ST
+
+    st = ST.discover(cwd)
+    g = st["guide"] or {}
+    return {"summary": st["summary"], "guide": g.get("text"), "guide_source": g.get("source")}
+
+
 def gate_findings(gate, path_for_model, cwd=None):
     out = []
     for c in gate.get("checks", []):
         if c["status"] not in ("fail", "warn"):
+            continue
+        if c["id"] == "sql_style" and c.get("violations"):
+            out += _style_findings(c, path_for_model, cwd)
             continue
         out.append(
             {
@@ -296,6 +344,7 @@ def build_review(cwd, model=None, base="HEAD", run_data=True):
     order = {"high": 3, "med": 2, "low": 1}
     overall = max((m["risk"]["level"] for m in per_model), key=lambda x: order[x], default="low")
     return {
+        "style": _style_summary(cwd),
         "primary": primary,
         "models": per_model,
         "files": files,

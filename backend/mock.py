@@ -5,6 +5,7 @@ Solutions come from mock_solutions.pick(prompt); some are intentionally flawed (
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 
@@ -156,6 +157,24 @@ def _factory_model(cwd):
     return "fct_monthly_revenue"
 
 
+def _style_fix(T, rel, cwd, p, sql, fixed):
+    """Style follow-up (upper-case SQL): `sqlfluff fix` with the repo/task style config. Returns (sql, fixed)."""
+    if not re.search(r"\b(SELECT|FROM|GROUP BY)\b", sql):
+        return sql, fixed
+    from factory_tools import sql_style as ST
+
+    cfg, _ = ST.effective_config(ST.discover(cwd), cwd, P.dialect(cwd))
+    i, e = T.tool("Bash", {"command": f"sqlfluff fix {rel} --config .factory/sqlfluff.cfg"})
+    yield e
+    exe = ST._sqlfluff_bin() or "sqlfluff"
+    argv = [exe, "fix", rel, "--config", cfg, "--disable-progress-bar"]
+    r = subprocess.run(argv, cwd=cwd, capture_output=True, text=True, check=False)
+    yield T.res(i, (r.stdout or r.stderr)[-600:])
+    with open(p) as fh:
+        sql = fh.read()
+    return sql, sql.replace(") total_amount", ") as total_amount") if " as total_amount" not in sql else sql
+
+
 def _followup(T, prompt, cwd):
     # find the factory model in this worktree
     if P.mode(cwd) == "sql":
@@ -183,6 +202,7 @@ def _followup(T, prompt, cwd):
             "    round(sum(amount) / count(distinct order_id), 2) as avg_order_value\n",
             "    round(sum(amount) / count(distinct order_id), 2) as avg_order_value,\n    round(sum(amount) / count(distinct customer_id), 2) as revenue_per_customer\n",
         )
+    sql, fixed = yield from _style_fix(T, rel, cwd, p, sql, fixed)
     i, e = T.tool("Edit", {"file_path": rel, "old_string": "...", "new_string": fixed[-400:]})
     yield e
     open(p, "w").write(fixed)
