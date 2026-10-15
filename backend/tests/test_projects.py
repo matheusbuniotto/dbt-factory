@@ -7,9 +7,9 @@ import time
 
 import pytest
 import yaml
-from conftest import task_worktree
 
 import projects as PJ
+from conftest import task_worktree
 
 
 def _status(repo):
@@ -170,8 +170,9 @@ def _wait(c, tid, timeout=300):
 
 
 def test_api_projects_and_tasks(mini_repo, sql_repo, tmp_path):
-    import main
     from fastapi.testclient import TestClient
+
+    import main
 
     c = TestClient(main.app)
     r = c.post("/api/projects", json={"path": str(tmp_path)})  # not a git repo

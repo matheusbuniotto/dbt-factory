@@ -29,7 +29,7 @@ ignore = [
 max-complexity = 25   # hard ceiling; the stricter per-function gate lives in xenon (see docs/CI.md)
 
 [tool.ruff.lint.isort]
-known-first-party = ["factory_tools", "adapters", "engine_config", "prompts", "mock_solutions", "evals"]
+known-first-party = ["factory_tools", "adapters", "engine_config", "prompts", "mock_solutions", "evals", "projects", "project_api", "main", "conftest"]
 
 [tool.ruff.format]
 quote-style = "preserve"

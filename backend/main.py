@@ -10,12 +10,12 @@ import threading
 import time
 import uuid
 
-import project_api as PAPI
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+import project_api as PAPI
 import projects as PJ
 from engine_config import (
     ALLOWED_TOOLS,

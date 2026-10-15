@@ -31,17 +31,17 @@ def allowed_roots() -> list[str]:
 
 def safe_path(raw: str) -> str:
     """Normalise a user-supplied path and require it to live under an allowed root."""
-    path = os.path.realpath(os.path.expanduser(raw.strip()))
-    for root in allowed_roots():
-        if path == root or path.startswith(root.rstrip(os.sep) + os.sep):
-            return path
-    raise HTTPException(
-        400,
-        {
-            "message": "path outside allowed roots",
-            "errors": [f"{path} is not under {allowed_roots()} (set FACTORY_ALLOWED_ROOTS)"],
-        },
-    )
+    path = os.path.normpath(os.path.realpath(os.path.expanduser(raw.strip())))
+    root = next((r for r in allowed_roots() if path == r or path.startswith(r.rstrip(os.sep) + os.sep)), None)
+    if root is None or not path.startswith(root):
+        raise HTTPException(
+            400,
+            {
+                "message": "path outside allowed roots",
+                "errors": [f"{path} is not under {allowed_roots()} (set FACTORY_ALLOWED_ROOTS)"],
+            },
+        )
+    return path
 
 
 def _sh(argv, cwd):

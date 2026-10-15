@@ -132,8 +132,9 @@ def test_review_risk_and_impact(cwd, fanout):
 
 # ---------- API: comments + verdict (no GitHub) ----------
 def test_comments_and_verdict_api(cwd):
-    import main
     from fastapi.testclient import TestClient
+
+    import main
 
     tid = "pytestrv"
     main.TASKS[tid] = {
