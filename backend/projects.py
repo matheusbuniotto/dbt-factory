@@ -53,6 +53,7 @@ DIALECTS = {
 SCHEMA_KEY = {"bigquery": "dataset"}  # where the dev "schema" lives in a profile output
 CONFIG_FILE = os.path.join(".factory", "config.yml")
 CONFIG_KEYS = {
+    "slim",  # slim builds: {depth: "" (all children) | int, favor_state: bool}
     "sql_style",  # SQL style: a path (file/dir) or {rules: path, guide: path}, relative to the repo
     "dbt_project_dir",  # sub-directory with dbt_project.yml (monorepos); auto-detected otherwise
     "profiles_dir",  # explicit profiles dir (relative to repo or absolute)
@@ -63,7 +64,7 @@ CONFIG_KEYS = {
     "grain",  # grain conventions: {model_name: [cols]} or {"fct_*": [...]}
     "protected_paths",  # glob list the agent must not modify (gate fails if touched)
     "eval_cases_dir",  # repo-local eval cases
-    "bootstrap",  # dev bootstrap: "full" (seed+run, default for duckdb) | "none"
+    "bootstrap",  # dev bootstrap: "none" (default: slim builds defer to prod) | "full" (seed+run)
     "layer_prefixes",  # naming convention for new models
     "sql",  # plain-SQL mode: {dialect: ansi, paths: [...]}
 }
@@ -278,7 +279,7 @@ def _detect_profile(det: dict, dbt_dir: str, root: str, cfg: dict) -> None:
         )
     if adapter and adapter not in DIALECTS:
         det["warnings"].append(f"adapter '{adapter}' is best-effort: dev isolation uses a schema suffix")
-    det["bootstrap"] = cfg.get("bootstrap") or ("full" if adapter == "duckdb" else "none")
+    det["bootstrap"] = cfg.get("bootstrap") or "none"  # slim builds defer unbuilt parents to prod
 
 
 def detect(path: str) -> dict[str, Any]:
@@ -322,6 +323,15 @@ def _abs_duckdb_path(p: str, dbt_dir: str) -> str:
     return p if os.path.isabs(p) else os.path.normpath(os.path.join(dbt_dir, p))
 
 
+def _prod_attach(prod_path, existing):
+    """duckdb: attach the prod file read-only to dev so --defer'd refs (prod_db.schema.table) resolve."""
+    out = list(existing or [])
+    if prod_path and os.path.isfile(prod_path):
+        alias = os.path.splitext(os.path.basename(prod_path))[0]
+        out.append({"path": prod_path, "alias": alias, "read_only": True})
+    return out
+
+
 def _suffix(task_id: str) -> str:
     return "_factory_" + re.sub(r"\W", "_", task_id)
 
@@ -341,6 +351,7 @@ def render_task_profile(det: dict, task_id: str, task_dir: str) -> str:
         dev = {**src_dev, "path": os.path.join(task_dir, ".factory", "dev.duckdb")}
         dev.pop("config_options", None)
         prod = {**src_prod, "path": _abs_duckdb_path(src_prod.get("path", ""), det["dbt_dir"])}
+        dev["attach"] = _prod_attach(prod["path"], src_dev.get("attach"))
         prod["config_options"] = {**(src_prod.get("config_options") or {}), "access_mode": "READ_ONLY"}
     else:
         key = SCHEMA_KEY.get(kind or "", "schema")
@@ -370,6 +381,7 @@ def task_context(det: dict) -> dict:
         "layer_prefixes": cfg.get("layer_prefixes"),
         "sql_paths": (cfg.get("sql") or {}).get("paths"),
         "bootstrap": det.get("bootstrap", "none"),
+        "slim": cfg.get("slim") or {},
         "single_writer": det.get("adapter") == "duckdb",
     }
 

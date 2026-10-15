@@ -47,3 +47,13 @@ export const CHECK_LABEL: Record<string, [string, string]> = {
   data_gates: ['Data checks', 'Skipped: plain SQL repo (no dbt target)'],
   sql_changed: ['SQL changed', 'At least one .sql file was edited'],
 }
+
+type BuildResult = { summary?: Record<string, number>; selection?: { models: number; total_models: number; select?: string } }
+
+/** dbt_build badge: status counts + how much of the project the slim selection touched ("3 of 2104 models"). */
+export function buildBadge(j: BuildResult): string {
+  const counts = Object.entries(j.summary || {}).map(([k, v]) => `${k.toUpperCase()} ${v}`)
+  const sel = j.selection
+  if (sel) counts.push(sel.models ? `${sel.models} of ${sel.total_models} models` : `nothing to build (${sel.total_models} models)`)
+  return counts.join(' · ')
+}

@@ -6,7 +6,7 @@ description: Coding + data Definition of Done for dbt changes (tests, grain, fan
 
 ## Coding (same bar as any PR)
 
-1. **Build green.** `dbt build --select <model>+` must pass. Fix failures with `dbt_failing_test_rows`.
+1. **Build green, slim.** Build only what changed: `dbt_build` with no select runs `state:modified+` with `--defer` to the prod manifest (follow-ups: only what changed since the last build, plus anything not yet built). Never run an unselected/whole-project build; it is refused unless the user explicitly asks. Fix failures with `dbt_failing_test_rows`.
 2. **Docs + tests.** Every model and column has a description. Primary key: `unique` + `not_null`. Foreign keys: `relationships`. Use `accepted_values` for enums, singular tests for ranges.
 3. **Naming / layering.** `stg_` (1:1 with sources, rename+cast) → `int_` (joins/business logic) → `fct_`/`dim_`/`mart_`/`rpt_`/`monthly_` (consume only via `ref`).
 4. **SQL style.** No `SELECT *` except `select * from {{ ref/source }}` in a CTE. Always `ref()`/`source()` — never hardcode schemas. Prefer explicit column lists in the final SELECT.

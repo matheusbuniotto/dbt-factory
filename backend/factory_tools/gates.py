@@ -121,6 +121,13 @@ def _naming_check(model, rel, cwd):
     return {"id": "naming_layer", "status": st, "detail": detail, "group": "code"}
 
 
+def _build_detail(b):
+    sel = b.get("selection") or {}
+    scope = f"{sel.get('models', 0)} of {sel.get('total_models', '?')} models built (select: {sel.get('select') or 'nothing changed'})"
+    failed = f"; failed: {[f['unique_id'] for f in b['failed'][:5]]}" if b["failed"] else ""
+    return f"{scope}; {b['summary'] or 'up to date'} in {b['elapsed']}s{failed}"
+
+
 def code_gates(model, cwd=None, lint=True):
     cwd = cwd or os.getcwd()
     checks = []
@@ -136,14 +143,14 @@ def code_gates(model, cwd=None, lint=True):
         add("dbt_compile", "fail", str(ex)[:300])
         return _pack(model, checks)
     try:
-        b = D.build(f"{model}+", cwd=cwd)
+        b = D.build(cwd=cwd)  # slim: state:modified+ (vs last build / prod), parents deferred to prod
         add(
             "dbt_build",
             "pass" if b["success"] else "fail",
-            f"{b['summary']} in {b['elapsed']}s"
-            + (f"; failed: {[f['unique_id'] for f in b['failed'][:5]]}" if b["failed"] else ""),
+            _build_detail(b),
             summary=b["summary"],
             failed=b.get("failed"),
+            selection=b.get("selection"),
         )
     except Exception as ex:
         add("dbt_build", "fail", str(ex)[:300])

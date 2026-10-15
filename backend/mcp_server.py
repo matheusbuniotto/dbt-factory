@@ -47,10 +47,18 @@ def dbt_compile(name: str) -> str:
 
 @mcp.tool()
 def dbt_build(
-    select: str | None = None, command: str = "build", exclude: str | None = None, full_refresh: bool = False
+    select: str | None = None,
+    command: str = "build",
+    exclude: str | None = None,
+    full_refresh: bool = False,
+    full_build: bool = False,
+    confirm: str | None = None,
 ) -> str:
-    """Run dbt build|test|run|seed|snapshot with selectors; returns structured run_results (status per node, failures, timings)."""
-    return _run(D.build, select, command, exclude, full_refresh)
+    """Slim dbt build|test|run|seed|snapshot. Leave `select` empty for the default: models changed since the last
+    build (state:modified+ vs prod on the first build) plus their children; unselected parents are deferred to prod.
+    Or pass a narrow selector (e.g. 'my_model+1'). A whole-project build is refused unless the user explicitly asked:
+    then full_build=true and confirm='build everything'. Returns run_results plus selection {models, total_models}."""
+    return _run(D.build, select, command, exclude, full_refresh, full_build=full_build, confirm=confirm)
 
 
 @mcp.tool()

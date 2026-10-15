@@ -8,5 +8,5 @@ description: Team conventions for new or changed dbt models in jaffle_shop (nami
 - Every new model gets an entry in a `.yml` file with a description and a description for every column.
 - Primary key column: `unique` + `not_null` tests. Foreign keys: `relationships` test when the parent model exists.
 - Money columns are `amount`/`revenue` style, rounded to 2 decimals in marts.
-- Before finishing: `dbt build --select <model>+`, then call `data_profile` on the model and `data_compare` (prod vs dev) on every changed existing model.
+- Before finishing: `dbt_build` (slim default: changed models + children, deferred to prod), then call `data_profile` on the model and `data_compare` (prod vs dev) on every changed existing model.
 - Never read seed CSVs or the warehouse file directly; inspect data only via the dbt-factory-tools MCP tools.

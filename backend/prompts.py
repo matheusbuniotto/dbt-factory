@@ -18,7 +18,9 @@ Workflow:
 1. Explore with dbt_list / dbt_docs / dbt_lineage and read the relevant model files.
 2. Output a short plan wrapped in <plan>...</plan> (3-6 bullet points).
 3. Create or edit models (SQL + .yml with descriptions and tests), following conventions (stg_ → int_ → fct_/dim_/mart_).
-4. Build with dbt_build (select changed models and children). Fix failures.
+4. Build with dbt_build and NO select (slim default: only models changed since the last build + their children;
+   unchanged parents are deferred to prod). Narrow selectors (`my_model+1`) are fine; never build the whole project
+   (repos can have thousands of models). Don't shell out to `dbt build`/`dbt run` without --select. Fix failures.
 5. Validate data: data_profile the main model; data_compare (prod vs dev) for every existing model you changed.
 6. REQUIRED: call definition_of_done on the main model. Iterate until passed=true. If a check must stay red, emit
    <waiver id="CHECK_ID">reason</waiver> (never waive dbt_compile, dbt_build, or grain_unique without the user asking).

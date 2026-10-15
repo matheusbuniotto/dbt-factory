@@ -156,6 +156,19 @@ Six jaffle cases under `evals/cases/`. Scores: data 50% · code 25% · gates 25%
 
 `docs/BEST_PRACTICES.md` is appended to the system prompt and shipped as a skill template in `docs/skills-template/`. Project skills under `.claude/skills/` win on conflicts.
 
+## Slim builds (large repos)
+
+dbt-factory never builds the whole project for a message. A repo can have thousands of models, so every build works like dbt Slim CI:
+
+- **Prod state.** For each task, the factory runs `dbt parse --target prod` on the task's base commit, in a throwaway checkout. The resulting manifest is cached per project and commit under `state/prod_state/` and copied to `<task>/.factory/prod-state/`. After prod is rebuilt, refresh it with `POST /api/projects/<id>/prod-state/refresh`.
+- **Selection.** `dbt_build` with no `select` runs `state:modified+` against prod on the first build, with `--defer --defer-state <prod-state>`. Unchanged parents are then read from prod, so nothing is bootstrapped into dev (`bootstrap: full` opts back in). On duckdb, the prod file is attached read-only to the dev connection so deferred refs resolve.
+- **Follow-ups.** Later builds select only what changed since the last build (`.factory/turn-state/`). They also pick up models that changed but never built successfully, and the last build's failures.
+- **Applies everywhere.** The same selection is used by the agent's `dbt_build` tool, the Definition-of-Done gate, the mock engine and evals. Review and `data_compare` only run on the models the task touched.
+- **Guard.** An unselected or whole-project build (`*`, `fqn:*`, `path:models`, …) is refused. It runs only with `full_build=true` and `confirm="build everything"`, when the user explicitly asks for it.
+- **UI.** Each build shows how much it touched, e.g. `SUCCESS 7 · 7 of 2104 models`, and the gate detail shows the selector used.
+- **Config.** In `.factory/config.yml`, `slim: {depth: 1}` selects `state:modified+1` (default: all children). `slim: {favor_state: true}` adds `--favor-state`.
+- **Manifest reuse.** The parsed manifest is cached per task: dbt partial parse, plus one JSON load shared by all tool calls. It is re-parsed only when project files change, and lineage reads from it.
+
 ## SQL style (configurable)
 
 The team style is discovered per task, from that task's own project. The first hit wins for each kind:

@@ -206,3 +206,26 @@ def prepare_worktree(det, tid, branch, wt_root):
         with open(f"{task_dir}/.factory/profiles.yml", "w") as f:
             f.write(prof)
     return wt, task_dir
+
+
+def prod_state(t, log):
+    """Slim builds need the prod manifest of the task's base commit (cached per project + sha)."""
+    from factory_tools import slim as S
+
+    try:
+        S.ensure_prod_state(t["worktree"], t.get("base") or "HEAD")
+        log("slim builds: prod state ready (state:modified+ with --defer to prod)")
+    except Exception as ex:
+        log(f"slim builds: no prod state ({str(ex)[:300]}); builds need an explicit --select")
+
+
+@router.post("/api/projects/{pid}/prod-state/refresh")
+def refresh_prod_state(pid: str):
+    """Drop the cached prod manifests of a project (after prod was rebuilt); new tasks/builds re-parse."""
+    from factory_tools import slim as S
+
+    entry = REGISTRY.get(pid)
+    if not entry:
+        raise HTTPException(404, "unknown project")
+    S.refresh_project_cache(entry["id"])
+    return {"refreshed": entry["id"]}

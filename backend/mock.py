@@ -119,9 +119,9 @@ def run_mock(prompt, cwd, env, followup=False):
         with open(os.path.join(cwd, path), "w") as fh:
             fh.write(body)
         yield T.res(i, "File created")
-    i, e = T.tool(M("dbt_build"), {"select": f"{model}+"})
+    i, e = T.tool(M("dbt_build"), {})
     yield e
-    yield T.res(i, call(D.build, f"{model}+", cwd=cwd))
+    yield T.res(i, call(D.build, cwd=cwd))
     i, e = T.tool(M("data_profile"), {"relation": model})
     yield e
     yield T.res(i, call(A.profile, model, cwd=cwd))
@@ -207,9 +207,9 @@ def _followup(T, prompt, cwd):
     yield e
     open(p, "w").write(fixed)
     yield T.res(i, "Edited" if fixed != sql else "No change needed")
-    i, e = T.tool(M("dbt_build"), {"select": f"{model}+"})
+    i, e = T.tool(M("dbt_build"), {})
     yield e
-    yield T.res(i, call(D.build, f"{model}+", cwd=cwd))
+    yield T.res(i, call(D.build, cwd=cwd))
     i, e = T.tool(M("definition_of_done"), {"model": model})
     yield e
     dod = call(G.run_gates, model, waivers={"reconciles": "new model"}, cwd=cwd)

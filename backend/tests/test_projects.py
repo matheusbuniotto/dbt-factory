@@ -24,7 +24,7 @@ def test_detect_monorepo_dbt(mini_repo):
     assert d["profile"] == "mini" and d["profiles_source"] == "project"
     assert d["adapter"] == "duckdb" and d["dialect"] == "duckdb" and d["adapter_installed"]
     assert d["targets"] == ["dev", "prod"] and (d["dev_target"], d["prod_target"]) == ("dev", "prod")
-    assert d["dbt_version_ok"] is True and d["bootstrap"] == "full"
+    assert d["dbt_version_ok"] is True and d["bootstrap"] == "none"
     assert d["config"]["protected_paths"] == ["models/finance/*"]
 
 
@@ -126,8 +126,12 @@ def test_tools_on_fixture_dbt_project(mini_repo, tmp_path):
 
     cwd = task_worktree(mini_repo, "mini-tools", str(tmp_path))
     assert cwd.endswith(os.path.join("analytics", "dbt"))
+    assert D.build(cwd=cwd)["selection"]["models"] == 0  # slim: nothing changed vs prod -> nothing built
+    with open(os.path.join(cwd, "models", "items.sql"), "a") as f:
+        f.write("-- touched\n")
     b = D.build(cwd=cwd)
     assert b["success"], b
+    assert "model.mini.items" in b["built"] and "model.mini.stg_items" not in b["built"]  # parent deferred to prod
     assert os.path.exists(os.path.join(cwd, ".factory", "dev.duckdb"))
     names = {r["name"] for r in D.list_resources("model", cwd=cwd)["resources"]}
     assert {"stg_items", "items", "fin_revenue"} <= names
