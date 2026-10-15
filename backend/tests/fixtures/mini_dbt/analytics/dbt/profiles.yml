@@ -1,0 +1,11 @@
+mini:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: dev.duckdb
+      threads: 2
+    prod:
+      type: duckdb
+      path: prod.duckdb
+      threads: 2

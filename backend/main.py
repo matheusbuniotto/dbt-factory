@@ -14,10 +14,9 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from style_api import router as style_router
-from style_api import style_caps
 
-from adapters import get_adapter
+import project_api as PAPI
+import projects as PJ
 from engine_config import (
     ALLOWED_TOOLS,
     DISALLOWED_TOOLS,
@@ -33,20 +32,27 @@ from engine_config import (
 )
 from factory_tools import dbt_tools as DT
 from factory_tools import gates as GATES
+from factory_tools import project_ctx as PJ_CTX
 from factory_tools import review as REVIEW
 from factory_tools import warehouse as WH
 from factory_tools.gates import parse_waivers
 from prompts import system_prompt
+from style_api import style_caps
+from task_locks import tlock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PROJECT = os.environ.get("DBT_PROJECT", f"{ROOT}/projects/jaffle_shop")
-os.environ.setdefault("DBT_PROJECT", PROJECT)
-WT_ROOT = f"{ROOT}/worktrees"
-STATE = f"{ROOT}/state"
+WT_ROOT = os.path.realpath(os.environ.get("FACTORY_WORKTREES_DIR") or f"{ROOT}/worktrees")
+STATE = os.path.realpath(os.environ.get("FACTORY_STATE_DIR") or f"{ROOT}/state")
 VENV_BIN = f"{ROOT}/.venv/bin"
 CLAUDE = shutil.which("claude") or os.path.expanduser("~/.local/bin/claude")
 os.makedirs(WT_ROOT, exist_ok=True)
 os.makedirs(STATE, exist_ok=True)
+
+# ---------------- projects (see project_api.py) ----------------
+DEMO_PROJECT = PAPI.DEMO_PROJECT
+DEFAULT_PROJECT = PAPI.DEFAULT_PROJECT
+PROJECTS_FILE = PAPI.PROJECTS_FILE
+EXCLUDE_PATHSPEC = PAPI.EXCLUDE_PATHSPEC
 
 
 def mock_mode():
@@ -57,19 +63,7 @@ def engine_of(t):
     return t.get("engine") or ("mock" if t.get("mock") else "cli")
 
 
-# ignore build artifacts in every worktree
-excl = f"{PROJECT}/.git/info/exclude"
-# the project may not be cloned yet (fresh container); setup/run will create it
-if os.path.exists(excl) and ".factory/" not in open(excl).read():
-    open(excl, "a").write("\n.factory/\nwarehouse.duckdb*\ntarget/\nlogs/\ndbt_packages/\n*.duckdb\n")
-
 TASKS: dict = {}
-TASK_LOCKS: dict = {}
-
-
-def tlock(tid):
-    """One warehouse job per task at a time (duckdb is single-writer)."""
-    return TASK_LOCKS.setdefault(tid, threading.Lock())
 
 
 def save(t):
@@ -77,10 +71,19 @@ def save(t):
 
 
 for f in os.listdir(STATE):
+    if not f.endswith(".json") or f == os.path.basename(PROJECTS_FILE):
+        continue
     t = json.load(open(f"{STATE}/{f}"))
     t.setdefault("turns", [{"prompt": t["prompt"], "status": t["status"]}])
     t.setdefault("cleaned", False)
     t.setdefault("engine", "mock" if t.get("mock") else "cli")
+    if "git_root" not in t:  # tasks created before multi-project support ran on the demo project
+        t["git_root"] = DEMO_PROJECT
+        t["wt_root"] = t["worktree"]
+        t["project_path"] = DEMO_PROJECT
+        t["project_id"] = PJ.project_id(DEMO_PROJECT)
+        t["project_name"] = os.path.basename(DEMO_PROJECT)
+        t["mode"] = "dbt"
     if t["status"] == "running":
         t["status"] = "interrupted"
     TASKS[t["id"]] = t
@@ -160,24 +163,39 @@ def normalize(t, raw):
             is_error=o.get("is_error"),
         )
         if t["status"] == "running":
+            t["phase"] = "finishing"  # engine reported its result; process exit + DoD gate still to come
             t["status"] = "failed" if o.get("is_error") else "succeeded"
 
 
-def run_task(t, prompt, followup=False):
-    if not followup and not os.path.exists(os.path.join(t["worktree"], "warehouse.duckdb")):
-        # bootstrap the task's dev target through dbt (seed + run of the base project) so `model+` builds have parents
-        emit(t, "log", text="bootstrapping dev target: dbt seed + dbt run (base project)")
-        from factory_tools.warehouse import run_dbt
+def _needs_bootstrap(t):
+    """duckdb (or `bootstrap: full`) projects get seed+run into the private dev target once per task."""
+    if t.get("mode", "dbt") != "dbt" or PJ_CTX.load(t["worktree"]).get("bootstrap", "full") != "full":
+        return False
+    return not os.path.exists(os.path.join(t["worktree"], ".factory", "dev.duckdb"))
 
-        for args in (["seed", "--quiet"], ["run", "--quiet"]):
-            p0 = run_dbt(args, cwd=t["worktree"], timeout=300)
-            if p0.returncode:
-                emit(t, "log", text=f"bootstrap dbt {args[0]} failed: {(p0.stdout + p0.stderr)[-400:]}")
+
+def _bootstrap(t):
+    """Seed + run the base project into the task's private dev target so `model+` builds have parents."""
+    if not _needs_bootstrap(t):
+        return
+    emit(t, "log", text="bootstrapping dev target: dbt seed + dbt run (base project)")
+    from factory_tools.warehouse import run_dbt
+
+    for args in (["seed", "--quiet"], ["run", "--quiet"]):
+        p0 = run_dbt(args, cwd=t["worktree"], timeout=300)
+        if p0.returncode:
+            emit(t, "log", text=f"bootstrap dbt {args[0]} failed: {(p0.stdout + p0.stderr)[-400:]}")
+
+
+def run_task(t, prompt, followup=False):
+    if not followup:
+        _bootstrap(t)
     wt = t["worktree"]
     env = {
         **os.environ,
         "PATH": f"{VENV_BIN}:{os.path.dirname(CLAUDE)}:{os.environ['PATH']}",
         "DBT_PROFILES_DIR": f"{wt}/.factory",
+        "FACTORY_MODE": t.get("mode", "dbt"),
         "CLAUDE_CODE_MAX_RETRIES": os.environ.get("CLAUDE_CODE_MAX_RETRIES", "2"),
     }
     try:
@@ -201,7 +219,7 @@ def run_task(t, prompt, followup=False):
                 "stream-json",
                 "--verbose",
                 "--append-system-prompt",
-                system_prompt(wt, PROJECT),
+                system_prompt(t.get("mode", "dbt"), wt),
                 "--allowedTools",
                 ",".join(ALLOWED_TOOLS),
                 "--disallowedTools",
@@ -234,6 +252,7 @@ def run_task(t, prompt, followup=False):
                 normalize(t, line.strip())
         p.wait()
         if t["status"] == "running":
+            t["phase"] = "finishing"  # set before the status flips so pollers never see a half-finished turn
             t["status"] = "succeeded" if p.returncode == 0 else "failed"
             if p.returncode:
                 emit(t, "log", text=f"engine exited {p.returncode}")
@@ -243,6 +262,8 @@ def run_task(t, prompt, followup=False):
         emit(t, "log", text=f"error: {ex}")
     PROCS.pop(t["id"], None)
     t["pid"] = None
+    if t["status"] != "succeeded":
+        t["phase"] = None
     t["turns"][-1]["status"] = t["status"]
     # Definition of Done: run gates on the preview model (or last changed) when the turn succeeded
     if t["status"] == "succeeded":
@@ -269,45 +290,55 @@ def run_task(t, prompt, followup=False):
     save(t)
 
 
-def _run_post_turn_gate(t):
+def _compute_gate(t, model=None):
     wt = t["worktree"]
-    model = t.get("preview_model")
+    if t.get("mode") == "sql":
+        return GATES.sql_gates(wt, t.get("base") or "HEAD")
+    model = model or t.get("preview_model")
     if not model:
         models, _ = REVIEW.changed_models(wt, t.get("base") or "HEAD")
         model = models[0] if models else None
     if not model:
+        return None
+    text = "\n".join(e.get("text") or "" for e in t["events"] if e.get("kind") == "text")
+    return GATES.run_gates(model, waivers=parse_waivers(text), cwd=wt)
+
+
+def _run_post_turn_gate(t):
+    gate = _compute_gate(t)
+    if not gate:
         emit(t, "log", text="gate skipped: no model to score")
         return
-    text = "\n".join(e.get("text") or "" for e in t["events"] if e.get("kind") == "text")
-    waivers = parse_waivers(text)
-    gate = GATES.run_gates(model, waivers=waivers, cwd=wt)
     t["gate"] = gate
-    t["turns"][-1]["gate"] = {"passed": gate["passed"], "summary": gate["summary"], "failed": gate["failed"]}
+    t["turns"][-1]["gate"] = {k: gate[k] for k in ("passed", "summary", "failed")}
+    checks = [{k: c.get(k) for k in ("id", "status", "detail", "group")} for c in gate["checks"]]
     emit(
         t,
         "gate",
-        model=model,
+        model=gate["model"],
         passed=gate["passed"],
         summary=gate["summary"],
         failed=gate["failed"],
-        checks=[
-            {"id": c["id"], "status": c["status"], "detail": c["detail"], "group": c.get("group")}
-            for c in gate["checks"]
-        ],
+        checks=checks,
     )
 
 
 PROCS: dict = {}
 
 app = FastAPI(title="dbt-factory")
-app.include_router(style_router)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app.include_router(PAPI.router)
+PAPI.has_running_tasks = lambda pid: any(
+    t.get("project_id") == pid and t["status"] == "running" for t in TASKS.values()
+)
 
 
 class TaskIn(BaseModel):
     prompt: str
     mock: bool | None = None
     engine: str | None = None
+    project_id: str | None = None
+    project: str | None = None  # a local path; registered on the fly (used by evals)
 
 
 @app.get("/api/health")
@@ -322,19 +353,33 @@ def health():
         "claude": CLAUDE if os.path.exists(CLAUDE) else None,
         "api_key": bool(os.environ.get("ANTHROPIC_API_KEY")),
         "auth": claude_auth(),
-        "adapter": get_adapter().name,
-        "project": PROJECT,
+        "adapter": (PAPI.DETECT_CACHE.get(PAPI.default_project_id() or "") or {}).get("adapter"),
+        "project": DEFAULT_PROJECT,
+        "default_project_id": PAPI.default_project_id(),
         "gh_authed": sh(["gh", "auth", "status"], ROOT).returncode == 0,
     }
+
+
+TASK_LIST_KEYS = [
+    "id",
+    "prompt",
+    "status",
+    "branch",
+    "created",
+    "mock",
+    "cleaned",
+    "engine",
+    "gate",
+    "project_id",
+    "project_name",
+    "mode",
+]
 
 
 @app.get("/api/tasks")
 def list_tasks():
     return sorted(
-        [
-            {k: t.get(k) for k in ("id", "prompt", "status", "branch", "created", "mock", "cleaned", "engine", "gate")}
-            for t in TASKS.values()
-        ],
+        [{k: t.get(k) for k in TASK_LIST_KEYS} for t in TASKS.values()],
         key=lambda x: -x["created"],
     )
 
@@ -344,20 +389,12 @@ def create_task(body: TaskIn):
     eng = body.engine or ("mock" if body.mock else default_engine())
     if eng not in ENGINES:
         raise HTTPException(400, f"engine must be one of {ENGINES}")
+    det = PAPI.resolve_project(body.project, body.project_id)
     tid = uuid.uuid4().hex[:8]
     branch = f"factory/{tid}"
-    wt = f"{WT_ROOT}/{tid}"
-    r = sh(["git", "worktree", "add", "-b", branch, wt, "HEAD"], PROJECT)
-    if r.returncode:
-        raise HTTPException(500, r.stderr)
-    os.makedirs(f"{wt}/.factory", exist_ok=True)
-    m = re.search(r"^profile:\s*['\"]?([\w-]+)", open(f"{wt}/dbt_project.yml").read(), re.M)
-    if not m:
-        raise HTTPException(500, "dbt_project.yml has no profile")
-    proj = m.group(1)
-    open(f"{wt}/.factory/profiles.yml", "w").write(get_adapter().profiles_yml(proj, wt, PROJECT))
+    wt_root, wt = PAPI.prepare_worktree(det, tid, branch, WT_ROOT)
     write_mcp_config(wt)
-    base = sh(["git", "rev-parse", "HEAD"], PROJECT).stdout.strip()
+    base = sh(["git", "rev-parse", "HEAD"], det["git_root"]).stdout.strip()
     t = {
         "id": tid,
         "base": base,
@@ -365,6 +402,13 @@ def create_task(body: TaskIn):
         "status": "running",
         "branch": branch,
         "worktree": wt,
+        "wt_root": wt_root,
+        "git_root": det["git_root"],
+        "project_id": det["id"],
+        "project_name": det["name"],
+        "project_path": det["path"],
+        "mode": det["mode"],
+        "adapter": det.get("adapter"),
         "created": time.time(),
         "engine": eng,
         "mock": eng == "mock",
@@ -423,12 +467,15 @@ def diff(tid: str):
     wt = t["worktree"]
     if t.get("cleaned"):
         return {
-            "diff": sh(["git", "diff", t.get("base") or "HEAD", t["branch"]], PROJECT).stdout,
+            "diff": sh(["git", "diff", t.get("base") or "HEAD", t["branch"]], t["git_root"]).stdout,
             "stat": "(worktree cleaned; diff of branch vs main)",
         }
-    sh(["git", "add", "-A", "-N"], wt)
+    sh(["git", "add", "-A", "-N", "--", ".", *EXCLUDE_PATHSPEC], wt)
     base = t.get("base") or "HEAD"
-    return {"diff": sh(["git", "diff", base], wt).stdout, "stat": sh(["git", "diff", base, "--stat"], wt).stdout}
+    return {
+        "diff": sh(["git", "diff", base, "--", ".", *EXCLUDE_PATHSPEC], wt).stdout,
+        "stat": sh(["git", "diff", base, "--stat", "--", ".", *EXCLUDE_PATHSPEC], wt).stdout,
+    }
 
 
 PREVIEW_CACHE: dict = {}
@@ -445,21 +492,26 @@ def _models(wt):
 def preview(tid: str, relation: str | None = None, limit: int = 20):
     """Data preview through the dbt target (dbt show) - never reads warehouse files directly."""
     t = get(tid)
-    a = get_adapter()
     wt = t["worktree"]
     if t.get("cleaned"):
         raise HTTPException(410, "worktree cleaned up")
+    if t.get("mode") == "sql":
+        raise HTTPException(409, "plain SQL mode: no dbt target to preview through")
     rel = relation or t.get("preview_model")
     rr = f"{wt}/target/run_results.json"
     key = (tid, rel, limit, os.path.getmtime(rr) if os.path.exists(rr) else 0)
     if key in PREVIEW_CACHE:
         return PREVIEW_CACHE[key]
-    if t["status"] == "running" and a.single_writer:
+    if t["status"] == "running" and PJ_CTX.load(wt).get("single_writer", True):
         raise HTTPException(409, "preview runs when the droid is idle (single-writer warehouse)")
     if not rel:
         return {"relations": _models(wt), "columns": [], "rows": []}
     try:
-        out = {"relation": rel, "via": f"dbt show ({a.name} target dev)", **WH.sample(rel, limit, cwd=wt)}
+        out = {
+            "relation": rel,
+            "via": f"dbt show ({PJ_CTX.load(wt).get('adapter') or 'dbt'} target dev)",
+            **WH.sample(rel, limit, cwd=wt),
+        }
     except WH.QueryError as ex:
         raise HTTPException(409, str(ex))
     PREVIEW_CACHE[key] = out
@@ -472,7 +524,7 @@ def capabilities(tid: str):
     caps = dict(t.get("capabilities") or {})
     if not t.get("cleaned"):
         caps["skills"] = project_skills(t["worktree"])
-    caps["sql_style"] = style_caps(None if t.get("cleaned") else t["worktree"], PROJECT)
+    caps["sql_style"] = style_caps(None if t.get("cleaned") else t["worktree"], t.get("project_id"))
     return caps
 
 
@@ -482,7 +534,7 @@ def pr(tid: str):
     wt = t["worktree"]
     if t["status"] == "running" or t.get("cleaned"):
         raise HTTPException(409, "task running or cleaned")
-    sh(["git", "add", "-A"], wt)
+    sh(["git", "add", "-A", "--", ".", *EXCLUDE_PATHSPEC], wt)
     c = sh(
         [
             "git",
@@ -573,16 +625,17 @@ def cleanup(tid: str, delete_branch: bool = False):
     t = get(tid)
     if t["status"] == "running":
         raise HTTPException(409, "cancel first")
-    wt = t["worktree"]
+    wt = t.get("wt_root") or t["worktree"]
     if not wt.startswith(WT_ROOT + "/"):
         raise HTTPException(400)
-    r = sh(["git", "worktree", "remove", "--force", wt], PROJECT)
+    root = t["git_root"]
+    r = sh(["git", "worktree", "remove", "--force", wt], root)
     if os.path.isdir(wt):
         shutil.rmtree(wt)
-    sh(["git", "worktree", "prune"], PROJECT)
+    sh(["git", "worktree", "prune"], root)
     out = {"worktree_removed": not os.path.exists(wt), "git": r.stderr.strip()}
     if delete_branch:
-        out["branch_deleted"] = sh(["git", "branch", "-D", t["branch"]], PROJECT).returncode == 0
+        out["branch_deleted"] = sh(["git", "branch", "-D", t["branch"]], root).returncode == 0
     t["cleaned"] = True
     save(t)
     return out
@@ -596,13 +649,10 @@ def get_gate(tid: str, refresh: bool = False):
     if refresh or not t.get("gate"):
         with tlock(tid):
             model = t.get("preview_model")
-            if not model:
-                ms, _ = REVIEW.changed_models(t["worktree"], t.get("base") or "HEAD")
-                model = ms[0] if ms else None
-            if not model:
+            gate = _compute_gate(t, model)
+            if not gate:
                 raise HTTPException(404, "no model")
-            text = "\n".join(e.get("text") or "" for e in t["events"] if e.get("kind") == "text")
-            t["gate"] = GATES.run_gates(model, waivers=parse_waivers(text), cwd=t["worktree"])
+            t["gate"] = gate
             save(t)
     return t["gate"]
 
@@ -614,12 +664,8 @@ def get_review(tid: str, refresh: bool = False):
         raise HTTPException(410, "worktree cleaned up")
     if refresh or not t.get("review"):
         with tlock(tid):
-            t["review"] = REVIEW.build_review(
-                t["worktree"],
-                model=t.get("preview_model"),
-                base=t.get("base") or "HEAD",
-                run_data=t["status"] != "running",
-            )
+            kw = {"base": t.get("base") or "HEAD", "run_data": t["status"] != "running"}
+            t["review"] = REVIEW.build_review(t["worktree"], model=t.get("preview_model"), **kw)
             save(t)
     rev = dict(t["review"])
     rev["comments"] = t.get("comments") or []

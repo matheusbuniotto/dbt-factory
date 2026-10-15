@@ -1,5 +1,6 @@
 id: monthly_revenue
 title: Monthly revenue mart (baseline)
+project: projects/jaffle_shop # repo-relative or absolute path of the dbt repo this case runs against
 tags: [basic, aggregation]
 request: Build a monthly revenue mart with order count, customers, revenue and AOV per month.
 target_model: fct_monthly_revenue

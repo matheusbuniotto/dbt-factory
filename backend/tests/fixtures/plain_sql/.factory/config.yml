@@ -1,0 +1,3 @@
+sql:
+  dialect: postgres
+  paths: [queries]

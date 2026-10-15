@@ -4,7 +4,6 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ.setdefault("FACTORY_ENGINE", "mock")
-import main
 from claude_agent_sdk import (
     AssistantMessage,
     ResultMessage,
@@ -16,6 +15,8 @@ from claude_agent_sdk import (
     UserMessage,
 )
 from sdk_runner import to_stream_json
+
+import main
 
 
 def mk(**kw):

@@ -74,7 +74,11 @@ async def main(prompt, resume=None):
 
     stderr_tail = []
     opts = ClaudeAgentOptions(
-        system_prompt={"type": "preset", "preset": "claude_code", "append": system_prompt(os.getcwd())},
+        system_prompt={
+            "type": "preset",
+            "preset": "claude_code",
+            "append": system_prompt(os.environ.get("FACTORY_MODE", "dbt"), os.getcwd()),
+        },
         allowed_tools=ALLOWED_TOOLS,
         disallowed_tools=DISALLOWED_TOOLS,
         mcp_servers=mcp_servers(os.getcwd()),

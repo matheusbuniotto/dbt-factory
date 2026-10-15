@@ -18,11 +18,25 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 API = os.environ.get("FACTORY_API", "http://localhost:8787")
 
 
-def load_cases(only=None):
+def cases_dir_for(project=None):
+    """Bundled cases, or a repo's own cases (`eval_cases_dir` in <repo>/.factory/config.yml, default .factory/evals)."""
+    if not project:
+        return os.environ.get("FACTORY_EVAL_CASES_DIR") or os.path.join(ROOT, "cases")
+    cfg_p = os.path.join(project, ".factory", "config.yml")
+    cfg = {}
+    if os.path.exists(cfg_p):
+        with open(cfg_p) as fh:
+            cfg = yaml.safe_load(fh) or {}
+    return os.path.join(project, cfg.get("eval_cases_dir") or ".factory/evals")
+
+
+def load_cases(only=None, project=None):
     cases = []
-    for f in sorted(glob.glob(os.path.join(ROOT, "cases", "*.yml"))):
+    for f in sorted(glob.glob(os.path.join(cases_dir_for(project), "*.yml"))):
         c = yaml.safe_load(open(f))
         c["_file"] = os.path.basename(f)
+        if project:
+            c.setdefault("project", os.path.realpath(project))
         if not only or c["id"] in only:
             cases.append(c)
     return cases
@@ -33,7 +47,7 @@ def _wait(client, tid, timeout=1200):
     while time.time() - t0 < timeout:
         t = client.get(f"{API}/api/tasks/{tid}").json()
         # wait out the DoD gate phase too (status flips back to running while phase=gating)
-        if t["status"] != "running" and t.get("phase") != "gating":
+        if t["status"] != "running" and not t.get("phase"):
             # brief settle so the API process releases any duckdb handle
             time.sleep(0.5)
             return t
@@ -47,7 +61,11 @@ def run_case(case, engine, client, judge):
     r = None
     for attempt in range(3):  # task creation can be slow while other tasks run in-process dbt
         try:
-            r = client.post(f"{API}/api/tasks", json={"prompt": case["request"], "engine": engine}, timeout=180).json()
+            r = client.post(
+                f"{API}/api/tasks",
+                json={"prompt": case["request"], "engine": engine, "project": case.get("project")},
+                timeout=180,
+            ).json()
             break
         except httpx.TimeoutException:
             if attempt == 2:
@@ -124,10 +142,10 @@ def aggregate(cases):
     }
 
 
-def run(engine="mock", only=None, run_id=None, parallel=1, label=None):
+def run(engine="mock", only=None, run_id=None, parallel=1, label=None, project=None):
     run_id = run_id or datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:4]
     path = os.path.join(ROOT, "results", f"{run_id}.json")
-    cases = load_cases(only)
+    cases = load_cases(only, project)
     judge = get_judge()
     out = {
         "run_id": run_id,

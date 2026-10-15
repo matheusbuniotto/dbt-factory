@@ -30,6 +30,9 @@ type Task = {
   preview_model?: string
   pr?: any
   session_id?: string
+  project_id?: string
+  project_name?: string
+  mode?: string
 }
 type Health = {
   engine?: string
@@ -41,6 +44,7 @@ type Health = {
   gh_authed?: boolean
   auth?: string | null
   project?: string
+  default_project_id?: string
 }
 
 const j = (u: string, o?: RequestInit) => fetch(u, o).then((r) => r.json())
@@ -49,117 +53,6 @@ const ago = (s: number) => {
   return d < 60 ? 'Now' : d < 3600 ? `${Math.floor(d / 60)}m` : d < 86400 ? `${Math.floor(d / 3600)}h` : `${Math.floor(d / 86400)}d`
 }
 const projectName = (h: Health) => h.project?.split('/').pop() || 'project'
-
-/* ---------- tiny icon set (stroke, 14px) ---------- */
-const I = {
-  plus: <path d="M8 3v10M3 8h10" />,
-  search: (
-    <>
-      <circle cx="7" cy="7" r="4.5" />
-      <path d="M10.5 10.5 14 14" />
-    </>
-  ),
-  chev: <path d="M6 4l4 4-4 4" />,
-  term: (
-    <>
-      <path d="M3 4.5 6.5 8 3 11.5" />
-      <path d="M8 12h5" />
-    </>
-  ),
-  file: (
-    <>
-      <path d="M4 2h5l3 3v9H4z" />
-      <path d="M9 2v3h3" />
-    </>
-  ),
-  edit: (
-    <>
-      <path d="M3 13h3l7-7-3-3-7 7z" />
-    </>
-  ),
-  glob: (
-    <>
-      <circle cx="8" cy="8" r="5.5" />
-      <path d="M2.5 8h11M8 2.5c2 2 2 9 0 11M8 2.5c-2 2-2 9 0 11" />
-    </>
-  ),
-  zap: <path d="M9 1.5 3.5 9H8l-1 5.5L12.5 7H8z" />,
-  stop: <rect x="4" y="4" width="8" height="8" rx="1.5" />,
-  up: <path d="M8 13V3M4 7l4-4 4 4" />,
-  branch: (
-    <>
-      <circle cx="4.5" cy="3.5" r="1.5" />
-      <circle cx="4.5" cy="12.5" r="1.5" />
-      <circle cx="11.5" cy="6" r="1.5" />
-      <path d="M4.5 5v6M11.5 7.5c0 2.5-7 1.5-7 3.5" />
-    </>
-  ),
-  trash: (
-    <>
-      <path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.7 9h5.6l.7-9" />
-    </>
-  ),
-  check: <path d="M3.5 8.5 6.5 11.5 12.5 4.5" />,
-  table: (
-    <>
-      <rect x="2.5" y="3" width="11" height="10" rx="1.5" />
-      <path d="M2.5 6.5h11M6.5 6.5V13" />
-    </>
-  ),
-  diff: (
-    <>
-      <path d="M5 2v7M1.5 5.5h7M8 12.5h6.5" />
-    </>
-  ),
-  list: (
-    <>
-      <path d="M6 4h7.5M6 8h7.5M6 12h7.5" />
-      <circle cx="3" cy="4" r=".6" />
-      <circle cx="3" cy="8" r=".6" />
-      <circle cx="3" cy="12" r=".6" />
-    </>
-  ),
-  code: <path d="M5.5 4.5 2 8l3.5 3.5M10.5 4.5 14 8l-3.5 3.5" />,
-  panel: (
-    <>
-      <rect x="2" y="3" width="12" height="10" rx="1.5" />
-      <path d="M10 3v10" />
-    </>
-  ),
-}
-const Icon = ({ n, className = '' }: { n: keyof typeof I; className?: string }) => (
-  <svg
-    viewBox="0 0 16 16"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth={1.4}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className={`h-3.5 w-3.5 shrink-0 ${className}`}
-  >
-    {I[n]}
-  </svg>
-)
-
-const Logo = () => (
-  <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] text-ink-1" fill="currentColor">
-    {[0, 45, 90, 135, 180, 225, 270, 315].map((r) => (
-      <path key={r} transform={`rotate(${r} 12 12)`} d="M12 12c-.6-2.6-.2-5.6 1.6-8.6 1 2.8.6 5.8-1.6 8.6z" opacity={0.92} />
-    ))}
-  </svg>
-)
-
-function StatusDot({ s }: { s: string }) {
-  if (s === 'running')
-    return (
-      <span className="relative flex h-2 w-2">
-        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-60" />
-        <span className="relative h-2 w-2 rounded-full bg-accent" />
-      </span>
-    )
-  const c: Record<string, string> = { succeeded: 'bg-[#4ade80]/80', failed: 'bg-[#f87171]', cancelled: 'bg-ink-5', interrupted: 'bg-ink-5' }
-  return <span className={`h-1.5 w-1.5 rounded-full ${c[s] || 'bg-ink-5'}`} />
-}
 
 /* ---------- timeline pieces ---------- */
 const toolIcon = (n?: string): keyof typeof I =>
@@ -643,6 +536,10 @@ function Composer({ value, set, onSend, disabled, placeholder, chips, autoFocus 
 import { GateChip, GateScorecard } from './Gates'
 import ReviewView from './Review'
 import EvalsPage from './Evals'
+import { I, Icon, Logo, StatusDot } from './icons'
+import { ProjectPicker } from './Projects'
+import { groupByProject, useProjects } from './projectsData'
+import { errText } from './ui'
 import { SettingsEntry, StyleCaps } from './Settings'
 
 export default function App() {
@@ -672,6 +569,7 @@ export default function App() {
   const evCount = useRef(0)
   const scroller = useRef<HTMLDivElement>(null)
 
+  const proj = useProjects(health.default_project_id)
   const refreshList = () => j('/api/tasks').then(setTasks)
   useEffect(() => {
     j('/api/health').then(setHealth)
@@ -743,8 +641,9 @@ export default function App() {
     const r = await j('/api/tasks', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ prompt: draft, engine: engine || health.engine }),
+      body: JSON.stringify({ prompt: draft, engine: engine || health.engine, project_id: proj.current?.id }),
     })
+    if (!r.id) return flash(errText(r.detail) || 'could not start session')
     setDraft('')
     await refreshList()
     setSel(r.id)
@@ -885,28 +784,37 @@ export default function App() {
           <span className="ml-auto font-mono text-[10.5px] text-ink-5">{tasks.length}</span>
         </div>
         <div className="flex-1 overflow-auto px-2 pb-3">
-          <div className="flex items-center gap-1.5 px-2 py-1.5 text-[13px] text-ink-1">
-            <Icon n="chev" className="rotate-90 text-ink-4" />
-            {projectName(health)}
-          </div>
-          {filtered.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => {
-                setPage('tasks')
-                setSel(t.id)
-              }}
-              className={`group flex w-full items-center gap-2 rounded-md py-[6px] pl-6 pr-2 text-left transition ${sel === t.id ? 'bg-hover text-ink-1' : 'text-ink-3 hover:bg-hover/70 hover:text-ink-2'}`}
-            >
-              <span className="w-2">
-                <StatusDot s={t.status} />
-              </span>
-              <span className={`flex-1 truncate text-[13px] ${t.cleaned ? 'text-ink-5' : ''}`}>{t.prompt}</span>
-              {t.engine && t.engine !== 'mock' && (
-                <span className="rounded border border-line2 px-1 font-mono text-[9.5px] text-ink-4">{t.engine}</span>
-              )}
-              <span className="font-mono text-[11px] text-ink-5">{ago(t.created)}</span>
-            </button>
+          {groupByProject(filtered, proj.projects, health.default_project_id).map((g) => (
+            <div key={g.id}>
+              <button
+                onClick={() => proj.setCur(g.id)}
+                title="Use this project for new sessions"
+                className={`flex w-full items-center gap-1.5 px-2 py-1.5 text-left text-[13px] ${proj.current?.id === g.id ? 'text-ink-1' : 'text-ink-3'}`}
+              >
+                <Icon n="chev" className="rotate-90 text-ink-4" />
+                <span className="flex-1 truncate">{g.name}</span>
+                <span className="font-mono text-[10.5px] text-ink-5">{g.tasks.length}</span>
+              </button>
+              {g.tasks.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => {
+                    setPage('tasks')
+                    setSel(t.id)
+                  }}
+                  className={`group flex w-full items-center gap-2 rounded-md py-[6px] pl-6 pr-2 text-left transition ${sel === t.id ? 'bg-hover text-ink-1' : 'text-ink-3 hover:bg-hover/70 hover:text-ink-2'}`}
+                >
+                  <span className="w-2">
+                    <StatusDot s={t.status} />
+                  </span>
+                  <span className={`flex-1 truncate text-[13px] ${t.cleaned ? 'text-ink-5' : ''}`}>{t.prompt}</span>
+                  {t.engine && t.engine !== 'mock' && (
+                    <span className="rounded border border-line2 px-1 font-mono text-[9.5px] text-ink-4">{t.engine}</span>
+                  )}
+                  <span className="font-mono text-[11px] text-ink-5">{ago(t.created)}</span>
+                </button>
+              ))}
+            </div>
           ))}
           {!filtered.length && <div className="px-6 py-2 text-[12px] text-ink-5">No sessions</div>}
         </div>
@@ -942,9 +850,11 @@ export default function App() {
             </div>
             <h1 className="mb-2 text-center font-mono text-[30px] leading-tight tracking-tight text-ink-1">What should the droid build?</h1>
             <p className="mb-7 text-center text-[13.5px] text-ink-4">
-              Each session gets its own git worktree of <span className="font-mono text-ink-3">{projectName(health)}</span>, builds with
-              dbt, and previews the data.
+              Each session gets its own git worktree of{' '}
+              <span className="font-mono text-ink-3">{proj.current?.name || projectName(health)}</span>, builds with dbt, and previews the
+              data.
             </p>
+            <ProjectPicker projects={proj.projects} current={proj.current} onSelect={proj.setCur} onChanged={() => proj.refresh()} />
             <Composer
               value={draft}
               set={setDraft}
@@ -978,7 +888,7 @@ export default function App() {
               <h1 className="min-w-0 truncate text-[13.5px] font-medium text-ink-1" title={task.prompt}>
                 {task.prompt}
               </h1>
-              <span className="hidden shrink-0 text-[12.5px] text-ink-4 2xl:inline">{projectName(health)}</span>
+              <span className="hidden shrink-0 text-[12.5px] text-ink-4 2xl:inline">{task.project_name || projectName(health)}</span>
               <span className="flex shrink-0 items-center gap-1 font-mono text-[11px] text-ink-5">
                 <Icon n="branch" className="h-3 w-3" />
                 {task.branch}

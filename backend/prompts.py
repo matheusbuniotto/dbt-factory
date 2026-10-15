@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 _BP = Path(__file__).resolve().parents[1] / "docs" / "BEST_PRACTICES.md"
@@ -31,8 +30,16 @@ Do not run git commands; the factory commits for you. Stay inside the cwd.
 """
 
 
-def system_prompt(cwd=None, project=None):
-    """Base prompt + the repo/task SQL style (rules source + human guide)."""
+SQL_MODE_NOTE = """
+# PLAIN SQL MODE (overrides the dbt workflow above)
+This repository has no dbt project. Edit/create .sql files only, following the repo's existing style and folders.
+There is no dbt target: the dbt_* and data_* MCP tools are unavailable, and you must NOT connect to any database or
+read data files. Do not invent results. Lint is checked by the factory (sqlfluff). Finish with a 2-line summary.
+"""
+
+
+def system_prompt(mode: str = "dbt", cwd=None) -> str:
+    """Base prompt (+ plain-SQL note) + the task's SQL style (task worktree, then its project; see sql_style)."""
     from factory_tools import sql_style as ST
 
-    return SYSTEM_PROMPT + ST.prompt_block(ST.discover(cwd, project or os.environ.get("DBT_PROJECT")))
+    return SYSTEM_PROMPT + (SQL_MODE_NOTE if mode == "sql" else "") + ST.prompt_block(ST.discover(cwd))

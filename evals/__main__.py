@@ -15,6 +15,7 @@ def main():
     r.add_argument("--case", action="append")
     r.add_argument("--parallel", type=int, default=2)
     r.add_argument("--run-id")
+    r.add_argument("--project", help="run the repo's own cases (eval_cases_dir) against that repo")
     r.add_argument("--label", default=os.environ.get("FACTORY_EVAL_LABEL") or None)
     sub.add_parser("list")
     a = ap.parse_args()
@@ -22,7 +23,7 @@ def main():
         for c in load_cases():
             print(f"{c['id']:18} {c.get('title')}")
         return
-    out = run(a.engine, a.case, a.run_id, a.parallel, a.label)
+    out = run(a.engine, a.case, a.run_id, a.parallel, a.label, a.project)
     ag = out.get("aggregate", {})
     print(json.dumps(ag, indent=2))
     for c in out["cases"]:

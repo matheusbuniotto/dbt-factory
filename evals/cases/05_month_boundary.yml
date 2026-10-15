@@ -1,5 +1,6 @@
 id: month_boundary
 title: Q1 2018 revenue (inclusive month-end boundary)
+project: projects/jaffle_shop # repo-relative or absolute path of the dbt repo this case runs against
 tags: [tricky, dates]
 request: Build fct_q1_2018_revenue — revenue and order count by status for Q1 2018 (Jan 1 through Mar 31 inclusive).
 target_model: fct_q1_2018_revenue

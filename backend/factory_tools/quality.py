@@ -260,6 +260,10 @@ def data_quality_gate(
             checks.append(check(getattr(fn, "__name__", "check"), "fail", f"{type(ex).__name__}: {ex}"))
 
     grain = grain or declared_grain(model, cwd=cwd)
+    if not grain:
+        from . import project_ctx as P
+
+        grain = P.grain_for(model, cwd=cwd)
     prof = A.profile(model, top_k=0, cwd=cwd)
     if measures is None:
         measures = [

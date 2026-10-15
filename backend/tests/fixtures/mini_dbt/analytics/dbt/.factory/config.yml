@@ -1,0 +1,10 @@
+# repo-local dbt-factory config (see README "Use with your repo")
+targets:
+  dev: dev
+  prod: prod
+grain:
+  items: [item_id]
+  'fct_*': [item_id]
+protected_paths:
+  - models/finance/*
+layer_prefixes: [stg_, int_, fct_, dim_]

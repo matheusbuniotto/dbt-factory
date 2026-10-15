@@ -4,11 +4,12 @@ Discovery order (first hit wins, per kind):
   1. $FACTORY_SQL_STYLE  - a file (.sqlfluff/.cfg/.toml/.ini -> rules, .md -> guide) or a directory holding either
   2. repo `.factory/config.yml` key `sql_style:` - a path (file/dir, relative to the repo) or {rules: path, guide: path}
   3. repo `.sqlfluff`                         (rules)
-  4. repo `.factory/.sqlfluff`                (rules, written by the UI Settings panel)
-  5. repo `.factory/sql_style.md`             (guide, also written by the UI)
+  4. repo `.factory/.sqlfluff`                (rules, committed)
+  5. repo `.factory/sql_style.md`             (guide, committed)
   6. repo `.claude/sql_style.md`, `.claude/STYLE.md`, `.claude/style_guide.md`, `.claude/skills/*style*/SKILL.md` (guide)
-"Repo" = the task worktree first, then the selected project checkout (its .factory/ is git-excluded, so worktrees
-don't inherit UI-saved files). Dialect always follows the active dbt adapter (duckdb, databricks, ...)."""
+  7. style saved from the UI for that project: <state>/style/<project id>/{.sqlfluff, sql_style.md} (never in the repo)
+"Repo" = each task's own dirs, in order: the task dir (dbt sub-dir of the worktree), the worktree root, then that
+task's project (dbt dir, repo root), read from <task>/.factory/project.json. Dialect follows the task's project."""
 
 import configparser
 import glob
@@ -20,14 +21,32 @@ import sys
 
 import yaml
 
+from . import project_ctx as P
+
+STATE = os.path.realpath(
+    os.environ.get("FACTORY_STATE_DIR") or os.path.join(os.path.dirname(__file__), "..", "..", "state")
+)
+
 RULE_EXT = (".sqlfluff", ".cfg", ".ini", ".toml")
 GUIDE_NAMES = (".factory/sql_style.md", ".claude/sql_style.md", ".claude/STYLE.md", ".claude/style_guide.md")
 MAX_TEXT = 20000
 
 
-def _dirs(cwd, project):
+def saved_dir(project_id):
+    """Where the UI saves a project's style (factory state, so the user's repo is never written)."""
+    return os.path.join(STATE, "style", project_id) if project_id else None
+
+
+def task_dirs(cwd):
+    """Lookup dirs for a task: task dir, worktree root, then its project's dbt dir and repo root."""
+    ctx = P.load(cwd) if cwd else {}
+    keys = ("worktree_root", "project_dir", "project_root")
+    return [cwd, *(ctx.get(k) for k in keys)], ctx.get("project_id")
+
+
+def _dirs(*dirs):
     out: list[str] = []
-    for d in (cwd, project):
+    for d in dirs:
         if d and os.path.isdir(d) and os.path.abspath(d) not in [os.path.abspath(x) for x in out]:
             out.append(d)
     return out
@@ -99,12 +118,23 @@ def _with_text(item):
         return None
 
 
-def discover(cwd=None, project=None):
+def _from_saved(project_id, found):
+    d = saved_dir(project_id)
+    for kind, name in (("rules", ".sqlfluff"), ("guide", "sql_style.md")):
+        p = os.path.join(d, name) if d else None
+        if p and os.path.isfile(p) and not found.get(kind):
+            found[kind] = {"path": p, "source": "factory settings"}
+
+
+def discover(cwd=None, project=None, project_id=None):
+    """Style for a task (cwd = its task dir) or, with cwd=None, for a project (`project` = its repo root)."""
     found: dict = {}
+    dirs, ctx_pid = task_dirs(cwd)
     _from_path(os.environ.get("FACTORY_SQL_STYLE"), "FACTORY_SQL_STYLE", found)
-    for d in _dirs(cwd, project):
+    for d in _dirs(*dirs, project):
         _from_config(d, found)
         _from_repo(d, found)
+    _from_saved(project_id or ctx_pid, found)
     rules, guide = _with_text(found.get("rules")), _with_text(found.get("guide"))
     summary = " + ".join(dict.fromkeys(x["source"] for x in (rules, guide) if x))
     return {"rules": rules, "guide": guide, "summary": summary or "default (sqlfluff defaults, no guide)"}
@@ -226,8 +256,8 @@ def _write_or_remove(path, text):
     return []
 
 
-def save(project, rules_text=None, guide_text=None):
-    d = os.path.join(project, ".factory")
+def save(project_id, rules_text=None, guide_text=None):
+    d = saved_dir(project_id)
     os.makedirs(d, exist_ok=True)
     saved = []
     if rules_text is not None:

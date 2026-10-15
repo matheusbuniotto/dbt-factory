@@ -1,5 +1,6 @@
 id: status_summary
 title: Order status summary with is_returned flag
+project: projects/jaffle_shop # repo-relative or absolute path of the dbt repo this case runs against
 tags: [basic, accepted_values]
 request: Build an order status summary with an is_returned flag (returned or return_pending), order count and amount per status.
 target_model: fct_order_status_summary

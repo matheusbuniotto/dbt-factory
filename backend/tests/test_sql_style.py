@@ -76,13 +76,48 @@ def test_lint_reports_lines(tmp_path):
     assert ST.lint("models/m.sql", good, style=ST.discover(good))["status"] == "pass"
 
 
-def test_save_validates(tmp_path):
+def test_save_validates(tmp_path, monkeypatch):
+    """UI-saved style lives in factory state per project id, never in the repo; repo files win over it."""
+    monkeypatch.setattr(ST, "STATE", str(tmp_path / "state"))
+    monkeypatch.delenv("FACTORY_SQL_STYLE", raising=False)
+    repo = tmp_path / "repo"
+    repo.mkdir()
     with pytest.raises(ValueError):
-        ST.save(str(tmp_path), rules_text="not = ini without section")
-    saved = ST.save(str(tmp_path), rules_text="[sqlfluff]\n", guide_text="# g")
-    assert len(saved) == 2 and ST.discover(str(tmp_path))["guide"]["text"] == "# g"
-    ST.save(str(tmp_path), rules_text="", guide_text="")
-    assert ST.discover(str(tmp_path))["rules"] is None
+        ST.save("p1", rules_text="not = ini without section")
+    saved = ST.save("p1", rules_text="[sqlfluff]\n", guide_text="# g")
+    assert len(saved) == 2 and all(str(tmp_path / "state") in p for p in saved)
+    st = ST.discover(None, str(repo), project_id="p1")
+    assert st["guide"]["text"] == "# g" and st["rules"]["source"] == "factory settings"
+    assert not (repo / ".factory").exists()
+    (repo / ".sqlfluff").write_text("[sqlfluff]\n")
+    assert ST.discover(None, str(repo), project_id="p1")["rules"]["source"] == "repo .sqlfluff"
+    ST.save("p1", rules_text="", guide_text="")
+    assert ST.discover(None, str(tmp_path / "nothing"), project_id="p1")["rules"] is None
+
+
+def test_task_dirs_from_project_json(tmp_path, monkeypatch):
+    """A task finds style in its dbt sub-dir, its worktree root, then its own project's root/.factory/config.yml."""
+    import json
+
+    monkeypatch.delenv("FACTORY_SQL_STYLE", raising=False)
+    proj, wt = tmp_path / "proj", tmp_path / "wt"
+    (proj / ".factory").mkdir(parents=True)
+    (proj / ".factory" / "config.yml").write_text("sql_style:\n  guide: docs/sql.md\n")
+    (proj / "docs").mkdir()
+    (proj / "docs" / "sql.md").write_text("# project guide\n")
+    task = wt / "analytics" / "dbt"
+    (task / ".factory").mkdir(parents=True)
+    (wt / ".sqlfluff").write_text("[sqlfluff]\n")
+    ctx = {
+        "worktree_root": str(wt),
+        "project_root": str(proj),
+        "project_dir": str(proj / "analytics/dbt"),
+        "project_id": "x",
+    }
+    (task / ".factory" / "project.json").write_text(json.dumps(ctx))
+    st = ST.discover(str(task))
+    assert st["rules"]["path"] == str(wt / ".sqlfluff")
+    assert st["guide"]["text"] == "# project guide\n" and st["guide"]["source"] == "repo .factory/config.yml"
 
 
 def test_review_findings_inline(tmp_path):
@@ -106,18 +141,22 @@ def test_review_findings_inline(tmp_path):
     assert f[0]["line"] == 1 and f[0]["line_hint"].startswith("SELECT") and "CP01" in f[0]["message"]
 
 
-def test_style_api(tmp_path, monkeypatch):
-    import main
+def test_style_api(mini_repo, tmp_path, monkeypatch):
     from fastapi.testclient import TestClient
 
-    monkeypatch.setattr(main, "PROJECT", str(tmp_path))
-    monkeypatch.setenv("DBT_PROJECT", str(tmp_path))  # the selected project
+    import main
+
+    monkeypatch.setattr(ST, "STATE", str(tmp_path / "state"))
     monkeypatch.delenv("FACTORY_SQL_STYLE", raising=False)
     c = TestClient(main.app)
-    assert c.get("/api/style").json()["rules"] is None
-    r = c.put("/api/style", json={"sqlfluff": "[sqlfluff]\nmax_line_length = 90\n", "guide": "# mine"}).json()
-    assert r["rules"]["source"] == "repo .factory/.sqlfluff" and r["guide"]["text"] == "# mine"
-    assert c.put("/api/style", json={"sqlfluff": "garbage"}).status_code == 400
+    pid = c.post("/api/projects", json={"path": mini_repo}).json()["id"]
+    assert c.get(f"/api/style?project_id={pid}").json()["project_id"] == pid
+    r = c.put(
+        f"/api/style?project_id={pid}", json={"sqlfluff": "[sqlfluff]\nmax_line_length = 90\n", "guide": "# mine"}
+    ).json()
+    assert r["guide"]["text"] == "# mine" and r["saved"] == [".sqlfluff", "sql_style.md"]
+    assert c.put(f"/api/style?project_id={pid}", json={"sqlfluff": "garbage"}).status_code == 400
+    assert c.get("/api/style?project_id=nope").status_code == 404
 
 
 def test_factory_config_sql_style(tmp_path, monkeypatch):

@@ -16,7 +16,7 @@ from factory_tools import quality as Q
 from factory_tools import review as R
 from factory_tools import warehouse as W
 
-WT = os.path.join(ROOT, "worktrees", "_pytest")
+WT = os.path.join(ROOT, "worktrees", "_pytest")  # demo worktree (see conftest.wt)
 FAN = os.path.join(WT, "models", "fct_pytest_fanout.sql")
 FAN_SQL = """-- intentionally fans out: one order can have many payments, grain claimed as order_id
 select o.order_id, o.customer_id, p.payment_id, p.amount
@@ -61,8 +61,11 @@ def test_parse_waivers():
 
 
 def test_layer_and_star_regex():
-    assert G.LAYER.match("fct_monthly_revenue") and G.LAYER.match("dim_customer_ltv")
-    assert not G.LAYER.match("monthly_rev")
+    from factory_tools import project_ctx as P
+
+    layer = P.layer_re("/nonexistent")  # no project.json -> default convention
+    assert layer.match("fct_monthly_revenue") and layer.match("dim_customer_ltv")
+    assert not layer.match("monthly_rev") and not layer.match("orders")
     star = r"(?is)select\s+\*\s+from\s+(?!\{\{\s*(?:ref|source)\b)"
     assert re.search(star, "select * from foo") and not re.search(star, "select * from {{ ref('orders') }}")
 
@@ -129,8 +132,9 @@ def test_review_risk_and_impact(cwd, fanout):
 
 # ---------- API: comments + verdict (no GitHub) ----------
 def test_comments_and_verdict_api(cwd):
-    import main
     from fastapi.testclient import TestClient
+
+    import main
 
     tid = "pytestrv"
     main.TASKS[tid] = {

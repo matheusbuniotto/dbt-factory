@@ -10,6 +10,7 @@ import subprocess
 from . import analysis as A
 from . import dbt_tools as D
 from . import gates as G
+from . import project_ctx as P
 from .warehouse import QueryError
 
 log = logging.getLogger(__name__)
@@ -31,35 +32,24 @@ def _sh(cmd, cwd):
 
 
 def changed_models(cwd, base="HEAD"):
-    """sql/yml under models/ that differ from base (uncommitted + committed since base)."""
-    r = _sh(["git", "diff", "--name-only", base], cwd)
-    files = [l for l in r.stdout.splitlines() if l.startswith("models/") and l.endswith((".sql", ".yml", ".yaml"))]
-    # also untracked
-    r2 = _sh(["git", "ls-files", "--others", "--exclude-standard", "models"], cwd)
-    files += [l for l in r2.stdout.splitlines() if l.endswith((".sql", ".yml", ".yaml"))]
+    """sql/yml under the project's model paths that differ from base (uncommitted + committed since base)."""
+    r = _sh(["git", "diff", "--name-only", "--relative", base], cwd)
+    r2 = _sh(["git", "ls-files", "--others", "--exclude-standard"], cwd)
+    files = [
+        l
+        for l in (r.stdout + r2.stdout).splitlines()
+        if P.is_model_file(l, cwd) and l.endswith((".sql", ".yml", ".yaml"))
+    ]
     models = sorted(
         {os.path.splitext(os.path.basename(f))[0] for f in files if not os.path.basename(f).startswith("_")}
     )
     # drop schema.yml-only names that aren't models
-    real = []
-    for m in models:
-        if os.path.exists(os.path.join(cwd, "models", f"{m}.sql")) or any(
-            os.path.exists(os.path.join(cwd, "models", d, f"{m}.sql"))
-            for d in os.listdir(os.path.join(cwd, "models"))
-            if os.path.isdir(os.path.join(cwd, "models", d))
-        ):
-            real.append(m)
-        else:
-            # search
-            for _root, _, fs in os.walk(os.path.join(cwd, "models")):
-                if f"{m}.sql" in fs:
-                    real.append(m)
-                    break
+    real = [m for m in models if P.find_model_file(m, cwd)]
     return sorted(set(real)), sorted(set(files))
 
 
 def file_diff(cwd, path, base="HEAD"):
-    r = _sh(["git", "diff", "-U3", base, "--", path], cwd)
+    r = _sh(["git", "diff", "-U3", "--relative", base, "--", path], cwd)
     if not r.stdout:
         r = _sh(["git", "diff", "--no-index", "/dev/null", path], cwd) if os.path.exists(os.path.join(cwd, path)) else r
     return r.stdout
@@ -265,7 +255,7 @@ def _style_findings(c, path_for_model, cwd):
 def _style_summary(cwd):
     from . import sql_style as ST
 
-    st = ST.discover(cwd, os.environ.get("DBT_PROJECT"))
+    st = ST.discover(cwd)
     g = st["guide"] or {}
     return {"summary": st["summary"], "guide": g.get("text"), "guide_source": g.get("source")}
 
@@ -291,6 +281,11 @@ def gate_findings(gate, path_for_model, cwd=None):
     return out
 
 
+def _model_path(files, m, cwd):
+    hit = next((f for f in files if f.endswith(f"{m}.sql")), None)
+    return hit or P.find_model_file(m, cwd) or f"models/{m}.sql"
+
+
 def build_review(cwd, model=None, base="HEAD", run_data=True):
     models, files = changed_models(cwd, base)
     if model and model not in models:
@@ -298,7 +293,7 @@ def build_review(cwd, model=None, base="HEAD", run_data=True):
     primary = model or (models[0] if models else None)
     per_model, findings = [], []
     for m in models:
-        path = next((f for f in files if f.endswith(f"{m}.sql")), f"models/{m}.sql")
+        path = _model_path(files, m, cwd)
         gate = compare = None
         if run_data:
             try:

@@ -1,5 +1,8 @@
 import { useEffect, useState, type ChangeEvent } from 'react'
+import { selectedProjectId } from './projectsData'
 import { j } from './ui'
+
+const styleUrl = () => `/api/style?project_id=${encodeURIComponent(selectedProjectId())}`
 
 type StyleSrc = { source?: string; text?: string } | null
 type StyleState = { summary?: string; dialect?: string; order?: string[]; rules?: StyleSrc; guide?: StyleSrc }
@@ -58,7 +61,7 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
   const [guide, setGuide] = useState('')
   const [msg, setMsg] = useState('')
   const load = () =>
-    j('/api/style').then((s) => {
+    j(styleUrl()).then((s) => {
       setSt(s)
       setRules(s.rules?.text || '')
       setGuide(s.guide?.text || '')
@@ -72,12 +75,12 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
   }
   const save = async () => {
     try {
-      await j('/api/style', {
+      await j(styleUrl(), {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ sqlfluff: rules, guide }),
       })
-      setMsg('Saved to project .factory/')
+      setMsg('Saved in dbt-factory settings for this project')
       load()
     } catch (e) {
       setMsg(e instanceof Error ? e.message : String(e))
@@ -97,8 +100,8 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
         </div>
         <p className="mb-4 text-[12.5px] text-ink-4">
           Active: <span className="text-ink-2">{st?.summary || '…'}</span> · dialect{' '}
-          <span className="font-mono text-ink-2">{st?.dialect}</span>. Lookup order: {st?.order?.join(' → ')}. A repo{' '}
-          <span className="font-mono">.sqlfluff</span> wins over what you save here.
+          <span className="font-mono text-ink-2">{st?.dialect}</span>. Lookup order: {st?.order?.join(' → ')}. Repo style files (
+          <span className="font-mono">.sqlfluff</span>, <span className="font-mono">.factory/config.yml</span>) win over what you save here.
         </p>
         <div className="grid gap-4 md:grid-cols-2">
           {(
@@ -146,7 +149,7 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
           </button>
           <span className="text-[12px] text-ink-4">{msg}</span>
           <span className="ml-auto text-[11.5px] text-ink-5">
-            Prefilled with the active style. Saving writes the project's .factory/ (empty box removes it).
+            Prefilled with the active style. Saved in dbt-factory state for the selected project, never in your repo (empty box removes it).
           </span>
         </div>
       </div>
