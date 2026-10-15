@@ -113,7 +113,8 @@ def test_registry_persists(tmp_path, mini_repo, sql_repo):
     assert reg.add(mini_repo)["id"] == a["id"]  # idempotent
     again = PJ.Registry(str(tmp_path / "projects.json"))
     assert [p["name"] for p in again.list()] == ["mini", "queries"]
-    assert again.remove(a["id"]) and len(PJ.Registry(str(tmp_path / "projects.json")).list()) == 1
+    removed = again.remove(a["id"])
+    assert removed and len(PJ.Registry(str(tmp_path / "projects.json")).list()) == 1
 
 
 # ---------- tools against a non-demo project ----------

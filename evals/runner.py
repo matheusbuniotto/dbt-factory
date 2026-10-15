@@ -23,7 +23,10 @@ def cases_dir_for(project=None):
     if not project:
         return os.environ.get("FACTORY_EVAL_CASES_DIR") or os.path.join(ROOT, "cases")
     cfg_p = os.path.join(project, ".factory", "config.yml")
-    cfg = (yaml.safe_load(open(cfg_p)) or {}) if os.path.exists(cfg_p) else {}
+    cfg = {}
+    if os.path.exists(cfg_p):
+        with open(cfg_p) as fh:
+            cfg = yaml.safe_load(fh) or {}
     return os.path.join(project, cfg.get("eval_cases_dir") or ".factory/evals")
 
 

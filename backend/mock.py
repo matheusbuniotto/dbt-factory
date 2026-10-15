@@ -115,7 +115,8 @@ def run_mock(prompt, cwd, env, followup=False):
         i, e = T.tool("Write", {"file_path": path, "content": body})
         yield e
         os.makedirs(os.path.dirname(os.path.join(cwd, path)), exist_ok=True)
-        open(os.path.join(cwd, path), "w").write(body)
+        with open(os.path.join(cwd, path), "w") as fh:
+        fh.write(body)
         yield T.res(i, "File created")
     i, e = T.tool(M("dbt_build"), {"select": f"{model}+"})
     yield e
@@ -221,7 +222,8 @@ def _sql_mode(T, prompt, cwd):
     i, e = T.tool("Write", {"file_path": path, "content": body})
     yield e
     os.makedirs(os.path.dirname(os.path.join(cwd, path)) or cwd, exist_ok=True)
-    open(os.path.join(cwd, path), "w").write(body)
+    with open(os.path.join(cwd, path), "w") as fh:
+        fh.write(body)
     yield T.res(i, "File created")
     g = G.sql_gates(cwd, files=[path])
     yield T.text(
