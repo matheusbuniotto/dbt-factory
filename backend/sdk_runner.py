@@ -9,7 +9,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from engine_config import ALLOWED_TOOLS, DISALLOWED_TOOLS, MAX_TURNS, claude_auth, mcp_servers, model
-from prompts import SYSTEM_PROMPT
+from prompts import system_prompt
 
 
 def _block(b):
@@ -74,7 +74,7 @@ async def main(prompt, resume=None):
 
     stderr_tail = []
     opts = ClaudeAgentOptions(
-        system_prompt={"type": "preset", "preset": "claude_code", "append": SYSTEM_PROMPT},
+        system_prompt={"type": "preset", "preset": "claude_code", "append": system_prompt(os.getcwd())},
         allowed_tools=ALLOWED_TOOLS,
         disallowed_tools=DISALLOWED_TOOLS,
         mcp_servers=mcp_servers(os.getcwd()),

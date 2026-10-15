@@ -100,14 +100,23 @@ function Thread({ c, onResolve }: { c: any; onResolve: (id: string, r: boolean) 
   )
 }
 
+const FINDING_STYLE: Record<string, string> = {
+  style: 'border-[#60a5fa]/30 bg-[#60a5fa]/[.07] text-[#bfdbfe]',
+  gate: 'border-[#facc15]/30 bg-[#facc15]/[.07] text-[#fde68a]',
+}
+
+// sql_style findings carry an exact new-file line; other findings anchor on an added line's text
+function findingMatches(f: any, l: Line, path: string) {
+  if (f.path !== path) return false
+  if (f.line) return f.line === l.n
+  return l.kind === 'add' && !!f.line_hint && l.text.trim().startsWith(f.line_hint.slice(0, 40))
+}
+
 function CodeDiff({ path, diff, findings, comments, onComment, onResolve }: any) {
   const lines = useMemo(() => parseDiff(diff || ''), [diff])
   const [open, setOpen] = useState<number | null>(null)
   const byLine = (n?: number) => comments.filter((c: any) => c.path === path && c.line === n)
-  const findingAt = (l: Line) =>
-    l.kind === 'add'
-      ? findings.filter((f: any) => f.path === path && f.line_hint && l.text.trim().startsWith(f.line_hint.slice(0, 40)))
-      : []
+  const findingAt = (l: Line) => (l.kind === 'del' ? [] : findings.filter((f: any) => findingMatches(f, l, path)))
   if (!lines.length) return <div className="p-4 text-[12.5px] text-ink-5">No code changes in this file.</div>
   return (
     <div className="font-mono text-[12px] leading-[1.7]">
@@ -145,9 +154,9 @@ function CodeDiff({ path, diff, findings, comments, onComment, onResolve }: any)
             {fs.map((f: any, k: number) => (
               <div
                 key={k}
-                className="mx-3 my-1.5 ml-[4.5rem] rounded-lg border border-[#facc15]/30 bg-[#facc15]/[.07] px-3 py-2 font-sans text-[12.5px] text-[#fde68a]"
+                className={`mx-3 my-1.5 ml-[4.5rem] rounded-lg border px-3 py-2 font-sans text-[12.5px] ${FINDING_STYLE[f.kind === 'sql_style' ? 'style' : 'gate']}`}
               >
-                ⚑ {plain(f.message)}
+                {f.kind === 'sql_style' ? '✎ Style' : '⚑'} {plain(f.message)}
               </div>
             ))}
             {cs.map((c: any) => (
@@ -367,6 +376,16 @@ export default function ReviewView({ task, onSentToAgent }: { task: any; onSentT
         )}
       </section>
 
+      {rev.style?.guide && (
+        <details className="rounded-2xl border border-line px-5 py-3">
+          <summary className="cursor-pointer text-[13px] text-ink-2">
+            Team SQL style guide <span className="text-ink-5">· {rev.style.summary}</span>
+          </summary>
+          <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap font-mono text-[12px] leading-5 text-ink-3">
+            {rev.style.guide}
+          </pre>
+        </details>
+      )}
       {(rev.models || []).map((m: any) => (
         <section key={m.model} className="overflow-hidden rounded-2xl border border-line">
           <header className="flex flex-wrap items-center gap-3 border-b border-line bg-sunken px-5 py-3">
@@ -452,12 +471,12 @@ export default function ReviewView({ task, onSentToAgent }: { task: any; onSentT
         </section>
       ))}
 
-      {(rev.findings || []).filter((f: any) => !f.line_hint).length > 0 && (
+      {(rev.findings || []).filter((f: any) => !f.line_hint && !f.line).length > 0 && (
         <section className="rounded-2xl border border-line p-5">
           <div className="label mb-2">Findings</div>
           <div className="space-y-1.5">
             {rev.findings
-              .filter((f: any) => !f.line_hint)
+              .filter((f: any) => !f.line_hint && !f.line)
               .map((f: any, i: number) => (
                 <div key={i} className="flex gap-2 text-[13px]">
                   <span

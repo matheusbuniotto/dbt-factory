@@ -3,8 +3,6 @@ Data checks go through the dbt target. Status: pass | fail | warn | skip | waive
 
 import os
 import re
-import shutil
-import subprocess
 
 from . import dbt_tools as D
 from . import quality as Q
@@ -114,31 +112,35 @@ def code_gates(model, cwd=None, lint=True):
     except Exception as ex:
         add("no_select_star", "skip", str(ex)[:120])
         add("ref_source_only", "skip", str(ex)[:120])
-    # lint
-    if lint and shutil.which("sqlfluff"):
-        try:
-            r = subprocess.run(
-                ["sqlfluff", "lint", "--dialect", "duckdb", "--templater", "jinja", f"models/{model}.sql"],
-                cwd=cwd,
-                capture_output=True,
-                text=True,
-                timeout=60,
-            )
-            # without dbt templater profiles we use jinja; FAIL=violations
-            if r.returncode == 0:
-                add("sqlfluff", "pass", "sqlfluff clean")
-            else:
-                body = (r.stdout or r.stderr)[-600:]
-                add(
-                    "sqlfluff",
-                    "warn" if "templater" in body.lower() else "fail",
-                    body.strip() or f"exit {r.returncode}",
-                )
-        except Exception as ex:
-            add("sqlfluff", "skip", str(ex)[:120])
-    else:
-        add("sqlfluff", "skip", "sqlfluff not installed")
+    if lint:
+        _style_check(model, cwd, add)
     return _pack(model, checks)
+
+
+def _style_check(model, cwd, add):
+    """SQL style: the repo/task style config (sqlfluff rules) linted with the active adapter's dialect."""
+    from adapters import get_adapter
+
+    from . import sql_style as ST
+
+    try:
+        try:
+            sql_path = D._find(D._manifest(cwd), model).get("original_file_path") or f"models/{model}.sql"
+        except Exception:
+            sql_path = f"models/{model}.sql"
+        dialect = getattr(get_adapter(), "dialect", "duckdb")
+        res = ST.lint(sql_path, cwd, dialect=dialect, style=ST.discover(cwd, os.environ.get("DBT_PROJECT")))
+        vs = res["violations"]
+        tag = f"[{res['source']}, templater={res.get('templater')}]"
+        if vs:
+            detail = f"{len(vs)} violation(s) {tag}: " + "; ".join(
+                f"L{v['line']} {v['code']} {v['description']}" for v in vs[:8]
+            )
+        else:
+            detail = res.get("detail") or f"clean {tag}"
+        add("sql_style", res["status"], detail, violations=vs, path=sql_path, source=res["source"])
+    except Exception as ex:
+        add("sql_style", "skip", str(ex)[:160])
 
 
 def data_gates(model, grain=None, measures=None, dimensions=None, reference_sql=None, waivers=None, cwd=None, **kw):
