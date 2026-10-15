@@ -72,10 +72,11 @@ def task_worktree(project_path: str, name: str, base_dir: str) -> str:
 @pytest.fixture(scope="session")
 def wt():
     from factory_tools import dbt_tools as D
+    from factory_tools import slim as S
 
     d = task_worktree(DEMO, "_pytest", f"{ROOT}/worktrees")
-    if not os.path.exists(f"{d}/.factory/dev.duckdb"):
-        D.build(cwd=d)
+    if not os.path.exists(f"{d}/.factory/dev.duckdb"):  # tests read every demo model from dev: explicit full build
+        D.build(cwd=d, full_build=True, confirm=S.FULL_BUILD_CONFIRM)
     return d
 
 

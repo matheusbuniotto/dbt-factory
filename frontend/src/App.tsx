@@ -103,14 +103,7 @@ function badgeFor(use: Ev, res?: Ev): JSX.Element | null {
   const cls = (ok: boolean) =>
     `ml-auto shrink-0 rounded border px-1.5 py-px font-mono text-[10.5px] ${ok ? 'border-[#4ade80]/25 text-[#86efac]' : 'border-[#f87171]/30 text-[#fca5a5]'}`
   if (j?.error) return <span className={cls(false)}>{j.error}</span>
-  if (t === 'dbt_build' && j?.summary)
-    return (
-      <span className={cls(j.success)}>
-        {Object.entries(j.summary)
-          .map(([k, v]) => `${k.toUpperCase()} ${v}`)
-          .join(' · ')}
-      </span>
-    )
+  if (t === 'dbt_build' && j?.summary) return <span className={cls(j.success)}>{buildBadge(j)}</span>
   if (t === 'data_profile' && j?.columns)
     return (
       <span className={cls(true)}>
@@ -539,7 +532,7 @@ import EvalsPage from './Evals'
 import { I, Icon, Logo, StatusDot } from './icons'
 import { ProjectPicker } from './Projects'
 import { groupByProject, useProjects } from './projectsData'
-import { errText } from './ui'
+import { buildBadge, errText } from './ui'
 import { SettingsEntry, StyleCaps } from './Settings'
 
 export default function App() {

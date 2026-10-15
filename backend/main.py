@@ -168,17 +168,17 @@ def normalize(t, raw):
 
 
 def _needs_bootstrap(t):
-    """duckdb (or `bootstrap: full`) projects get seed+run into the private dev target once per task."""
-    if t.get("mode", "dbt") != "dbt" or PJ_CTX.load(t["worktree"]).get("bootstrap", "full") != "full":
+    if t.get("mode", "dbt") != "dbt" or PJ_CTX.load(t["worktree"]).get("bootstrap", "none") != "full":
         return False
     return not os.path.exists(os.path.join(t["worktree"], ".factory", "dev.duckdb"))
 
 
 def _bootstrap(t):
-    """Seed + run the base project into the task's private dev target so `model+` builds have parents."""
+    """Prod state for slim builds; seed + run into the private dev target only with `bootstrap: full`."""
+    if t.get("mode", "dbt") == "dbt":
+        PAPI.prod_state(t, lambda m: emit(t, "log", text=m))
     if not _needs_bootstrap(t):
         return
-    emit(t, "log", text="bootstrapping dev target: dbt seed + dbt run (base project)")
     from factory_tools.warehouse import run_dbt
 
     for args in (["seed", "--quiet"], ["run", "--quiet"]):

@@ -4,17 +4,26 @@ failing test rows, docs lookup, source freshness."""
 import json
 import os
 
+from . import slim as S
 from .warehouse import TOOLS_TARGET, QueryError, _err, project_dir, run_dbt, show
+
+_MANIFESTS: dict = {}  # path -> (mtime, manifest): one json load per parse, shared by every tool call
 
 
 def _manifest(cwd=None, refresh=False):
+    """Cached manifest (tools target; dbt partial parse keeps re-parses cheap). Re-parses only when sources changed."""
     cwd = cwd or project_dir()
     path = os.path.join(cwd, TOOLS_TARGET, "manifest.json")
     if refresh or not os.path.exists(path) or _stale(cwd, path):
         p = run_dbt(["parse", "--quiet"], cwd=cwd)
         if p.returncode != 0:
             raise QueryError("dbt parse failed:\n" + _err(p))
-    return json.load(open(path))
+    mt = os.path.getmtime(path)
+    hit = _MANIFESTS.get(path)
+    if not hit or hit[0] != mt:
+        with open(path) as f:
+            hit = _MANIFESTS[path] = (mt, json.load(f))
+    return hit[1]
 
 
 def _stale(cwd, path):
@@ -113,7 +122,7 @@ def compile_model(name: str, cwd=None):
     n = _find(m, name)
     if n["resource_type"] not in ("model", "test", "snapshot", "analysis"):
         raise QueryError(f"{name} is a {n['resource_type']}, cannot compile")
-    p = run_dbt(["compile", "--select", n["name"], "--quiet"], cwd=cwd)
+    p = run_dbt(["compile", "--select", n["name"], "--quiet", *S.defer_args(cwd or project_dir())], cwd=cwd)
     if p.returncode != 0:
         raise QueryError("dbt compile failed:\n" + _err(p))
     node = json.load(open(os.path.join(cwd or project_dir(), TOOLS_TARGET, "manifest.json")))["nodes"][n["unique_id"]]
@@ -125,29 +134,16 @@ def compile_model(name: str, cwd=None):
     }
 
 
-def build(
-    select: str | None = None,
-    command: str = "build",
-    exclude: str | None = None,
-    full_refresh: bool = False,
-    cwd=None,
-    timeout=900,
-):
-    if command not in ("build", "test", "run", "seed", "snapshot"):
-        raise QueryError("command must be build|test|run|seed|snapshot")
-    args = (
-        [command]
-        + (["--select", select] if select else [])
-        + (["--exclude", exclude] if exclude else [])
-        + (["--full-refresh"] if full_refresh else [])
-    )
-    p = run_dbt(args, cwd=cwd, timeout=timeout, tools_target=False)  # real target/: the droid's own artifacts
-    rr_path = os.path.join(cwd or project_dir(), "target", "run_results.json")
-    if not os.path.exists(rr_path):
-        raise QueryError(_err(p))
-    rr = json.load(open(rr_path))
-    results = []
-    summary: dict[str, int] = {}
+def _selection(select, cwd):
+    """Explicit selector, or the slim default (state:modified+ vs last build / prod, + pending)."""
+    if select and select.strip():
+        return select.strip(), (S.TURN_STATE if os.path.exists(os.path.join(cwd, S.TURN_STATE)) else S.PROD_STATE)
+    sel, state = S.default_selection(cwd, _manifest(cwd))
+    return sel, state
+
+
+def _results(rr):
+    results, summary = [], {}
     for r in rr["results"]:
         summary[r["status"]] = summary.get(r["status"], 0) + 1
         results.append(
@@ -160,14 +156,100 @@ def build(
                 "rows_affected": (r.get("adapter_response") or {}).get("rows_affected"),
             }
         )
-    failed = [r for r in results if r["status"] in ("error", "fail", "warn")]
+    return results, summary
+
+
+def _plan(select, cwd, full_build, confirm):
+    """(selector, state dir) after the full-build guard; prod state is ensured for the slim default."""
+    explicit = bool(select and select.strip())
+    try:
+        S.ensure_prod_state(cwd)
+    except Exception as ex:  # no prod state: explicit selectors still work, the slim default cannot
+        if not explicit:
+            raise QueryError(f"no prod state for slim builds ({ex}); pass an explicit --select") from ex
+    sel, state = (select or "", None) if full_build else _selection(select, cwd)
+    try:
+        S.guard(sel, full_build, confirm)
+    except S.FullBuildRefused as ex:
+        raise QueryError(str(ex)) from ex
+    return sel, state
+
+
+def _build_args(command, sel, state, exclude, full_refresh, cwd):
+    use_state = bool(state) and S.has_prod_state(cwd) and "state:" in sel
+    return (
+        [command]
+        + (["--select", sel] if sel else [])
+        + (["--exclude", exclude] if exclude else [])
+        + (["--full-refresh"] if full_refresh else [])
+        + (["--state", os.path.join(cwd, state)] if use_state else [])
+        + S.defer_args(cwd)
+    )
+
+
+def _run_results(args, cwd, timeout):
+    rr_path = os.path.join(cwd, "target", "run_results.json")
+    if os.path.exists(rr_path):
+        os.remove(rr_path)  # never report a previous run's results
+    p = run_dbt(args, cwd=cwd, timeout=timeout, tools_target=False)  # real target/: the droid's own artifacts
+    if not os.path.exists(rr_path):
+        if p.returncode == 0 and "nothing to do" in (p.stdout + p.stderr).lower():
+            return p, None
+        raise QueryError(_err(p))
+    with open(rr_path) as f:
+        return p, json.load(f)
+
+
+def build(
+    select: str | None = None,
+    command: str = "build",
+    exclude: str | None = None,
+    full_refresh: bool = False,
+    cwd=None,
+    timeout=900,
+    full_build: bool = False,
+    confirm: str | None = None,
+):
+    """Slim dbt build: only the selection (default `state:modified+`), unselected parents deferred to prod.
+    An unselected/whole-project build is refused unless full_build=True and confirm=slim.FULL_BUILD_CONFIRM."""
+    if command not in ("build", "test", "run", "seed", "snapshot"):
+        raise QueryError("command must be build|test|run|seed|snapshot")
+    cwd = cwd or project_dir()
+    sel, state = _plan(select, cwd, full_build, confirm)
+    total = S.model_count(_manifest(cwd))
+    if not sel and not full_build:
+        return _nothing(command, total)
+    args = _build_args(command, sel, state, exclude, full_refresh, cwd)
+    p, rr = _run_results(args, cwd, timeout)
+    if rr is None:
+        return _nothing(command, total)
+    results, summary = _results(rr)
+    S.record(cwd, results)
+    built = sorted({r["unique_id"] for r in results if r["unique_id"].startswith(("model.", "seed.", "snapshot."))})
+    n_models = sum(u.startswith("model.") for u in built)
     return {
         "command": " ".join(["dbt", *args]),
         "success": p.returncode == 0,
         "summary": summary,
         "elapsed": round(rr.get("elapsed_time", 0), 2),
-        "failed": failed,
+        "failed": [r for r in results if r["status"] in ("error", "fail", "warn")],
+        "selection": {"select": sel, "state": state, "models": n_models, "total_models": total},
+        "built": built[:200],
         "results": results if len(results) <= 60 else results[:60],
+    }
+
+
+def _nothing(command, total):
+    return {
+        "command": f"dbt {command} (nothing selected)",
+        "success": True,
+        "summary": {},
+        "elapsed": 0,
+        "failed": [],
+        "selection": {"select": "", "state": None, "models": 0, "total_models": total},
+        "built": [],
+        "results": [],
+        "message": "nothing changed since the last build",
     }
 
 
@@ -177,7 +259,7 @@ def failing_test_rows(test: str, limit: int = 20, cwd=None):
     n = _find(m, test)
     if n["resource_type"] != "test":
         raise QueryError(f"{test} is not a test")
-    p = run_dbt(["compile", "--select", n["name"], "--quiet"], cwd=cwd)
+    p = run_dbt(["compile", "--select", n["name"], "--quiet", *S.defer_args(cwd or project_dir())], cwd=cwd)
     if p.returncode != 0:
         raise QueryError(_err(p))
     code = json.load(open(os.path.join(cwd or project_dir(), TOOLS_TARGET, "manifest.json")))["nodes"][

@@ -221,7 +221,9 @@ def _show_inproc(sql, limit, target, timeout, cwd):
             if not r.success:
                 raise QueryError(f"dbt parse failed: {r.exception}")
             _MANIFESTS[key] = cached = (mt, r.result)
-        r = dbtRunner(manifest=cached[1]).invoke(["show", "--inline", sql, "--limit", str(limit), *common])
+        r = dbtRunner(manifest=cached[1]).invoke(
+            ["show", "--inline", sql, "--limit", str(limit), *common, *_defer(cwd, target)]
+        )
         # release the duckdb handle so other processes (eval scorer, another worktree) can open the file
         _release_duckdb()
         # dbt adds the inline sql_operation to the shared manifest; drop it so the next call doesn't collide
@@ -270,6 +272,13 @@ def _release_duckdb():
         pass
 
 
+def _defer(cwd, target):
+    """Dev reads of unbuilt models resolve to prod (slim builds); prod reads never defer."""
+    from . import slim
+
+    return slim.defer_args(cwd or project_dir(), target)
+
+
 def show(sql: str, limit: int = 50, target: str | None = None, timeout: int = DEFAULT_TIMEOUT, cwd=None) -> dict:
     """Run trusted SQL (may contain jinja) via `dbt show --inline`, LIMIT enforced by dbt."""
     limit = max(1, min(int(limit), MAX_LIMIT))
@@ -286,6 +295,7 @@ def show(sql: str, limit: int = 50, target: str | None = None, timeout: int = DE
     args = ["show", "--inline", sql, "--limit", str(limit), "--output", "json", "--quiet"]
     if target:
         args += ["--target", target]
+    args += _defer(cwd, target)
     p = run_dbt(args, cwd=cwd, timeout=timeout)
     if p.returncode != 0:
         raise QueryError(_err(p) or "dbt show failed")
