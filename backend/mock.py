@@ -116,7 +116,7 @@ def run_mock(prompt, cwd, env, followup=False):
         yield e
         os.makedirs(os.path.dirname(os.path.join(cwd, path)), exist_ok=True)
         with open(os.path.join(cwd, path), "w") as fh:
-        fh.write(body)
+            fh.write(body)
         yield T.res(i, "File created")
     i, e = T.tool(M("dbt_build"), {"select": f"{model}+"})
     yield e
