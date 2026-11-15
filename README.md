@@ -6,19 +6,30 @@
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-fe5196.svg)](https://conventionalcommits.org)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://pre-commit.com)
 
-Droid-style "software factory" for analytics engineers: describe a dbt change, an agent works in its own git worktree, runs `dbt build`, and the UI streams plan / tool calls / diff / SQL / data preview.
+Software factory for analytics engineers: describe a dbt change in plain language, an agent works in its own **git worktree**, runs `dbt build`, and the UI streams plan, tool calls, diff, SQL, and data preview.
 
-## Setup
+| Definition of Done (gates) | Analyst review |
+| --- | --- |
+| ![Gate scorecard after a succeeded turn](screenshots/gate-scorecard.png) | ![Per-task review: risk, diff, prod vs dev](screenshots/review-analyst.png) |
 
-Requirements: Python 3.12 + [uv](https://docs.astral.sh/uv/), Node 20+, git. Optional: `gh` (PRs / review verdicts) and the `claude` CLI (live engines).
+**Why it's safe**
+
+- **Worktree isolation** — every task runs on branch `factory/<id>` in a dedicated worktree; your working tree is never touched.
+- **Prod read-only** — DuckDB prod opens with `access_mode: READ_ONLY`; on warehouses, prod is only queried through `dbt show` (SELECT with LIMIT).
+- **SQL guard** — ad-hoc data access is a single parsed SELECT (no DML/DDL); warehouse data never comes from local csv/parquet/duckdb reads.
+
+**Run it** (Python 3.12 + [uv](https://docs.astral.sh/uv/), Node 20+, git):
 
 ```bash
-./scripts/setup.sh       # .venv, frontend deps, clones jaffle_shop_duckdb into projects/ and builds its prod warehouse
-./run.sh                 # kills old instances, starts API :8787 and UI :5173
+./scripts/setup.sh && ./run.sh   # API :8787 · UI :5173
 open http://localhost:5173
 ```
 
-Without credentials everything runs on the `mock` engine (real dbt work, canned agent stream).
+No Anthropic credentials → `mock` engine (real dbt in the worktree, canned agent stream). Optional: `gh` (PRs / review verdicts), `claude` CLI (`FACTORY_ENGINE=cli`).
+
+## Setup
+
+`./scripts/setup.sh` creates `.venv`, installs frontend deps, clones `jaffle_shop_duckdb` into `projects/`, and builds its prod warehouse. `./run.sh` stops stale processes and starts API + UI.
 
 ## Use with your repo
 
@@ -178,7 +189,19 @@ The team style is discovered per task, from that task's own project. The first h
 
 ## Screenshots
 
-`screenshots/` — `gate-scorecard.png`, `style-review-inline.png`, `style-settings.png`, `style-gate.png`, `review-analyst.png`, `review-verdict.png`, `evals-compare.png`, `tools-profile-compare.png`, … Sample eval result: `evals/results/mock-final.json`.
+More UI captures from `screenshots/` (sample eval JSON: `evals/results/mock-final.json`).
+
+| Session stream (plan · tools · SQL) | Gate + sqlfluff style |
+| --- | --- |
+| ![Task session UI](screenshots/task-cb44f7fa.png) | ![SQL style gate](screenshots/style-gate.png) |
+
+| Review verdict | Evals: compare runs |
+| --- | --- |
+| ![Approve / request changes](screenshots/review-verdict.png) | ![Eval run comparison](screenshots/evals-compare.png) |
+
+| Prod vs dev profile compare | Inline style findings on diff |
+| --- | --- |
+| ![data_compare tool output](screenshots/tools-profile-compare.png) | ![Style violations on diff lines](screenshots/style-review-inline.png) |
 
 ## CI
 
