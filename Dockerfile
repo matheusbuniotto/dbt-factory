@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 # Multi-stage image: build the UI, resolve Python deps in a builder, ship a slim non-root runtime.
 
-FROM node:22-bookworm-slim AS ui
+FROM node:26-bookworm-slim AS ui
 WORKDIR /ui
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci --no-audit --no-fund
