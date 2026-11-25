@@ -109,7 +109,7 @@ jobs:
             echo "::warning title=dependency-review skipped::Dependency graph is disabled (Settings → Code security). Enable it to enforce this gate."
             echo "> ⚠️ dependency-review skipped: enable *Dependency graph* in repo settings to enforce it." >> "$GITHUB_STEP_SUMMARY"
           fi
-      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+      - uses: actions/dependency-review-action@bbc44d14a204704ccc493733616cd1e93a0321ec # v5.0.1
         if: steps.probe.outputs.enabled == 'true'
         with:
           fail-on-severity: high
